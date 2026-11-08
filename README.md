@@ -2,7 +2,7 @@
 
 **v1.0.0 · 初始框架预览版** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版只验证界面骨架与预览思路，AI 分析与自动发现标记为「规划中」。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.0) → `界序 INTERFACE_1.0.0_x64-setup.exe`（5.66 MB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.0) → `INTERFACE_1.0.0_x64-setup.exe`（5.66 MB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
@@ -100,11 +100,11 @@
 
 ## 安装方式（Windows）
 
-1. 从 [GitHub Releases v1.0.0](https://github.com/Murphmau5/Interface/releases/tag/v1.0.0) 下载 `界序 INTERFACE_1.0.0_x64-setup.exe`（5,932,704 字节 / 5.66 MB）。
+1. 从 [GitHub Releases v1.0.0](https://github.com/Murphmau5/Interface/releases/tag/v1.0.0) 下载 `INTERFACE_1.0.0_x64-setup.exe`（5,932,704 字节 / 5.66 MB）。GitHub 会将附件名 ASCII 化，本地构建产物的原名是 `界序 INTERFACE_1.0.0_x64-setup.exe`。
 2. 核对 SHA-256：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "界序 INTERFACE_1.0.0_x64-setup.exe"
+Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.0_x64-setup.exe"
 # D963BC0EA1B70BBA0B017F044B0A352D162E069C76AE60C48A32F390D382A75B
 ```
 
