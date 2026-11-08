@@ -1,0 +1,42 @@
+/* ============================================================
+   Theme layer · dark —— 只提供值，不定义语义
+   仪器台：近黑背景、冷灰面板、1px 半透明描边
+   ============================================================ */
+:root[data-theme="dark"] {
+  --theme-bg: #07090c;
+  --theme-surface: #0b1014;
+  --theme-surface-raised: #10161c;
+  --theme-surface-sunken: #080b0e;
+
+  --theme-border: rgba(255, 255, 255, 0.06);
+  --theme-border-strong: rgba(255, 255, 255, 0.12);
+
+  --theme-text-primary: #e8eef3;
+  --theme-text-secondary: #97a5b2;
+  --theme-text-tertiary: #5f6e7b;
+
+  --theme-accent: #7fd3e8;
+  --theme-accent-soft: rgba(127, 211, 232, 0.1);
+  --theme-accent-line: rgba(127, 211, 232, 0.36);
+  --theme-accent-ink: #041417;
+
+  --theme-status-success: #79c7a9;
+  --theme-status-warning: #d7b57b;
+  --theme-status-danger: #df8b8b;
+  --theme-status-info: #86b7da;
+
+  --theme-shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --theme-shadow-panel: 0 20px 48px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  --theme-grid-line: rgba(255, 255, 255, 0.035);
+  --theme-scrim: rgba(2, 4, 6, 0.66);
+
+  /* 预览示例自绘用的双主题样品色（与界面当前主题无关） */
+  --theme-demo-dark-bg: #07090c;
+  --theme-demo-dark-surface: #10161c;
+  --theme-demo-dark-text: #e8eef3;
+  --theme-demo-light-bg: #eef2f5;
+  --theme-demo-light-surface: #ffffff;
+  --theme-demo-light-text: #14202b;
+}

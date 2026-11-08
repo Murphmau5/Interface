@@ -1,0 +1,186 @@
+@import "tailwindcss";
+@import "./themes/dark.css";
+@import "./themes/light.css";
+@import "./tokens/semantic.css";
+@import "./nav.css";
+@import "./preview.css";
+
+/* Tailwind 语义映射：工具类只能落到语义层变量 */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-sunken: var(--surface-sunken);
+
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+
+  --color-ink: var(--text-primary);
+  --color-ink-soft: var(--text-secondary);
+  --color-ink-faint: var(--text-tertiary);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-accent-ink: var(--accent-ink);
+
+  --color-ok: var(--status-success);
+  --color-warn: var(--status-warning);
+  --color-danger: var(--status-danger);
+  --color-info: var(--status-info);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-pill: var(--radius-pill);
+
+  --shadow-ambient: var(--shadow-ambient);
+  --shadow-panel: var(--shadow-panel);
+
+  --text-2xs: var(--font-size-2xs);
+  --text-xs: var(--font-size-label);
+  --text-meta: var(--font-size-meta);
+  --text-sm: var(--font-size-body);
+  --text-base: var(--font-size-body);
+  --text-lg: var(--font-size-title);
+  --text-xl: var(--font-size-display);
+  --text-2xl: var(--font-size-hero);
+
+  --spacing-1: var(--space-1);
+  --spacing-2: var(--space-2);
+  --spacing-3: var(--space-3);
+  --spacing-4: var(--space-4);
+  --spacing-5: var(--space-5);
+  --spacing-6: var(--space-6);
+  --spacing-7: var(--space-7);
+  --spacing-8: var(--space-8);
+  --spacing-9: var(--space-9);
+  --spacing-10: var(--space-10);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-body);
+    line-height: var(--line-normal);
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-line);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border-radius: var(--radius-pill);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  .label-eyebrow {
+    font-size: var(--font-size-2xs);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    font-weight: 600;
+  }
+
+  .instrument-grid {
+    background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: center;
+  }
+
+  .text-selectable {
+    user-select: text;
+  }
+}
+
+/* 动效克制：用户手动「减少动效」或系统偏好时，几乎关闭过渡 */
+:root[data-reduce-motion="on"] *,
+:root[data-reduce-motion="on"] *::before,
+:root[data-reduce-motion="on"] *::after {
+  transition-duration: 1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* 预览案例是产品内容本身：减少动效时仍按真实时长播放一次，但不循环 */
+:root[data-reduce-motion="on"] .preview-stage[data-mode="live"] [data-pv-anim] {
+  animation-duration: var(--pv-duration, 900ms) !important;
+  animation-iteration-count: 1 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-stage[data-mode="live"] [data-pv-anim] {
+    animation-duration: var(--pv-duration, 900ms) !important;
+    animation-iteration-count: 1 !important;
+  }
+}

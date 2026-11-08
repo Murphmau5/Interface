@@ -1,0 +1,221 @@
+/* ============================================================
+   预览舞台 —— 全部自绘（HTML + CSS），没有 iframe / WebGL
+   悬停微预览与右栏完整预览共用这一套场景与播放参数
+   ============================================================ */
+.preview-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+}
+
+.pv-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+}
+
+.preview-stage[data-mode="live"] [data-pv-anim] {
+  animation-duration: var(--pv-duration, 900ms);
+  animation-timing-function: var(--pv-easing, ease);
+  animation-iteration-count: var(--pv-iterations, 1);
+  animation-fill-mode: both;
+}
+
+/* ---- 场景：错峰入场 ---- */
+.pv-rows {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 12% 12%;
+}
+
+.pv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 16%;
+  min-height: 14px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background-color: var(--surface-raised);
+  animation-delay: calc(var(--pv-index, 0) * var(--pv-stagger, 0ms));
+}
+
+.preview-stage[data-mode="live"] .pv-row {
+  animation-name: pv-rise;
+}
+
+.pv-row-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-xs);
+  background-color: var(--accent-soft);
+}
+
+.pv-row-bar {
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background-color: var(--border-strong);
+}
+
+.pv-row-bar[data-width="long"] {
+  width: 62%;
+}
+
+.pv-row-bar[data-width="short"] {
+  width: 34%;
+}
+
+@keyframes pv-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* ---- 场景：按压反馈 ---- */
+.pv-press-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pv-press {
+  min-width: 92px;
+  height: 30px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: var(--font-size-meta);
+  letter-spacing: var(--tracking-tight);
+}
+
+.preview-stage[data-mode="live"] .pv-press {
+  animation-name: pv-press;
+}
+
+.pv-press-caption {
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
+}
+
+@keyframes pv-press {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  32% {
+    transform: translate3d(0, 2px, 0) scale(0.97);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* ---- 场景：深浅交叉淡入 ---- */
+.pv-fade {
+  position: absolute;
+  inset: 0;
+}
+
+.pv-fade-layer {
+  position: absolute;
+  inset: 12%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.pv-fade-layer[data-pv-anim] {
+  animation-name: pv-cross-dark;
+}
+
+.pv-fade-layer[data-tone="light"] {
+  animation-name: pv-cross-light;
+}
+
+.pv-fade-layer[data-tone="dark"] {
+  --pv-fg: var(--demo-dark-text);
+  --pv-card: var(--demo-dark-surface);
+  background-color: var(--demo-dark-bg);
+}
+
+.pv-fade-layer[data-tone="light"] {
+  --pv-fg: var(--demo-light-text);
+  --pv-card: var(--demo-light-surface);
+  background-color: var(--demo-light-bg);
+}
+
+.pv-fade-bar {
+  height: 3px;
+  width: 46%;
+  border-radius: var(--radius-pill);
+  background-color: var(--pv-fg);
+  opacity: 0.55;
+}
+
+.pv-fade-card {
+  flex: 1 1 auto;
+  min-height: 12px;
+  border-radius: var(--radius-xs);
+  background-color: var(--pv-card);
+  opacity: 0.9;
+}
+
+@keyframes pv-cross-dark {
+  0% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0;
+  }
+  55% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes pv-cross-light {
+  0% {
+    opacity: 0;
+  }
+  45% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

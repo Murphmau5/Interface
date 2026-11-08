@@ -1,0 +1,87 @@
+/* ============================================================
+   Semantic layer —— 全项目只在这里定义一次
+   组件只允许引用本层变量，禁止硬编码颜色 / 圆角
+   ============================================================ */
+:root {
+  --bg: var(--theme-bg);
+  --surface: var(--theme-surface);
+  --surface-raised: var(--theme-surface-raised);
+  --surface-sunken: var(--theme-surface-sunken);
+
+  --border: var(--theme-border);
+  --border-strong: var(--theme-border-strong);
+
+  --text-primary: var(--theme-text-primary);
+  --text-secondary: var(--theme-text-secondary);
+  --text-tertiary: var(--theme-text-tertiary);
+
+  --accent: var(--theme-accent);
+  --accent-soft: var(--theme-accent-soft);
+  --accent-line: var(--theme-accent-line);
+  --accent-ink: var(--theme-accent-ink);
+
+  --status-success: var(--theme-status-success);
+  --status-warning: var(--theme-status-warning);
+  --status-danger: var(--theme-status-danger);
+  --status-info: var(--theme-status-info);
+
+  --shadow-ambient: var(--theme-shadow-ambient);
+  --shadow-panel: var(--theme-shadow-panel);
+  --grid-line: var(--theme-grid-line);
+  --scrim: var(--theme-scrim);
+
+  /* 预览示例的双主题样品色：组件只能引用这层，不直接写色值 */
+  --demo-dark-bg: var(--theme-demo-dark-bg);
+  --demo-dark-surface: var(--theme-demo-dark-surface);
+  --demo-dark-text: var(--theme-demo-dark-text);
+  --demo-light-bg: var(--theme-demo-light-bg);
+  --demo-light-surface: var(--theme-demo-light-surface);
+  --demo-light-text: var(--theme-demo-light-text);
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* Typography */
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI",
+    system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New",
+    monospace;
+
+  --font-size-2xs: 10px;
+  --font-size-label: 11px;
+  --font-size-meta: 12px;
+  --font-size-body: 13px;
+  --font-size-title: 15px;
+  --font-size-display: 20px;
+  --font-size-hero: 26px;
+
+  --line-tight: 1.25;
+  --line-normal: 1.55;
+  --tracking-label: 0.08em;
+  --tracking-tight: -0.01em;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 260ms;
+  --motion-nav: 240ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-nav: cubic-bezier(0.32, 0.72, 0, 1);
+}

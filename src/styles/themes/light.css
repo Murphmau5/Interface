@@ -1,0 +1,42 @@
+/* ============================================================
+   Theme layer · light —— 与深色对等，不是反色补丁
+   中性灰统一向冷蓝偏移（hue 约 220），避免发灰发脏
+   ============================================================ */
+:root[data-theme="light"] {
+  --theme-bg: #eef2f5;
+  --theme-surface: #f5f8fa;
+  --theme-surface-raised: #ffffff;
+  --theme-surface-sunken: #e7edf1;
+
+  --theme-border: rgba(18, 38, 54, 0.1);
+  --theme-border-strong: rgba(18, 38, 54, 0.18);
+
+  --theme-text-primary: #14202b;
+  --theme-text-secondary: #546575;
+  --theme-text-tertiary: #7c8b99;
+
+  --theme-accent: #0e7a8a;
+  --theme-accent-soft: rgba(14, 122, 138, 0.08);
+  --theme-accent-line: rgba(14, 122, 138, 0.28);
+  --theme-accent-ink: #f4fcfd;
+
+  --theme-status-success: #26755c;
+  --theme-status-warning: #9a6a16;
+  --theme-status-danger: #a63c3c;
+  --theme-status-info: #2e678f;
+
+  --theme-shadow-ambient: 0 1px 2px rgba(20, 40, 60, 0.08);
+  --theme-shadow-panel: 0 18px 40px rgba(20, 40, 60, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+
+  --theme-grid-line: rgba(18, 38, 54, 0.05);
+  --theme-scrim: rgba(28, 44, 58, 0.3);
+
+  /* 预览示例自绘用的双主题样品色（与界面当前主题无关） */
+  --theme-demo-dark-bg: #07090c;
+  --theme-demo-dark-surface: #10161c;
+  --theme-demo-dark-text: #e8eef3;
+  --theme-demo-light-bg: #eef2f5;
+  --theme-demo-light-surface: #ffffff;
+  --theme-demo-light-text: #14202b;
+}

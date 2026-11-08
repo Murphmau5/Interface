@@ -1,0 +1,154 @@
+# CHANGELOG.md — 版本变更记录
+
+> 面向用户与维护者的变更摘要；详细过程见 `PROJECT_LOG.md`。
+
+## [1.0.0] — 2026-11-08
+
+首个可安装骨架版本（Phase 1）。本版本只交付应用外壳与数据通路，不含 AI / 采集 / 审核等业务功能。
+
+### Added
+
+- Tauri 2 + React 19 + TypeScript + Vite 工程骨架，Windows 10/11 x64，产品名统一为「界序 INTERFACE」（`com.jiexu.interface`）。
+- 三栏主界面：左栏导航栈、中栏列表、右栏详情；左栏与中栏宽度可拖动，并持久化到 SQLite。
+- 左栏导航栈：一级域向内推入二级面板，位移等于栏宽、240ms、`cubic-bezier(0.32, 0.72, 0, 1)`，仅使用 transform / opacity；支持「‹ 返回」、`Esc`、`Alt+←`；栈深上限 2 层；返回还原滚动位置与已选类目。
+- 一级域：风格 / 动效 / 反馈与状态 / 组件 / 主题；工具位：AI 工作台 / AI 发现 / 设置；收藏与最近使用固定在左栏底部。
+- SQLite（SQLx + 内嵌迁移）：启动时在应用数据目录自动建库，`settings` 表与 `cases` 表最小 schema，WAL 模式。
+- 主题系统：默认跟随系统，支持「跟随系统 / 深色 / 浅色」三态并持久化；系统明暗变化实时跟随。
+- 两层 Design Token：语义层定义一次，深/浅主题各提供一套值；组件只引用语义层。
+- 基础 UI 组件：Button / Input / Card / Select / Switch / Tooltip / EmptyState / LoadingState / SegmentedControl，全部有真实行为；未实现项禁用并在界面与悬停提示中说明原因。
+- 卡片悬停预览：默认显示首帧，悬停 140ms 后自动播放，移出立即复位；全局唯一共享预览层，列表滚动即销毁；Tab 聚焦同样触发；遵循 `prefers-reduced-motion`（只播一次、不循环）；主题类条目播放深浅交叉淡入。
+- 右栏完整预览与悬停微预览共用同一播放内核（`PreviewStage`），右栏支持播放 / 停止 / 重播 / 循环。
+- 内置三条自绘示例案例（错峰入场、按压反馈、深浅交叉淡入），全部手写 HTML/CSS，无外部截图、插画或录屏。
+- 设置页：主题三态、减少动效、面板宽度恢复、数据库路径与案例数、settings 写入并读回（重启后仍在）、开源许可清单。
+- 合规底座：根目录 MIT `LICENSE`、`THIRD_PARTY_NOTICES.md`、`npm run check:licenses`（前端 + Rust 依赖许可检查，白名单 MIT / Apache-2.0 / BSD-2-Clause / BSD-3-Clause / ISC / OFL，禁止 GPL / AGPL / LGPL / SSPL）。
+- 自绘应用图标与 NSIS 安装包配置。
+
+### Known Issues
+
+- 类目为占位分组名，条目数固定为 0：`cases` 表尚无类目字段，类目筛选待 Phase 2 接入。
+- 预览仅支持三种内置自绘场景；自建案例 payload 为空时不播放，也不提供假动画。
+- AI 工作台 / AI 发现只做到「草稿写入并读回」，分析、检索、Provider 与密钥管理未实现，主行动按钮禁用。
+- 搜索、标签、关联、审核、导入导出、备份 / 还原均未实现，相关入口禁用或只读。
+- 右栏详情仅支持重命名、收藏、软删除；参数面板、提示词与素材引用待后续阶段。
+- 无代码签名，Windows 首次运行可能出现 SmartScreen 提示。
+- 安装包使用 GNU 目标构建（本机无 MSVC 链接器），未做 MSVC 版本回归。
+
+## [0.1.2] — 2026-11-08
+
+### Added
+
+- 可发布的 GitHub 首页 `README.md`：首行「v1.0.0 · 初始框架预览版」，含功能清单、安装、首用引导、仓库信息、合规声明与开源致谢。
+- `docs/release-notes/template.md` 与 `docs/release-notes/v1.0.0.md`（草稿，待构建/待发布）。
+- `.gitignore`：排除 `target/`、`node_modules/`、`.agent/temp`、本地数据库与素材目录。
+- 双作用域搜索：默认本地、`Ctrl+Enter` 联网、禁止自动联网、无 Key 降级为粘贴网址。
+- `candidates` 候选池表（与正式库物理分表）与强制审核流程。
+- 万级数据结构：虚拟滚动、分页 40、缩略图 128/256/512 多档预生成。
+- 导出双格式：Markdown + JSON，一次操作，文件名带版本与日期。
+- `docs/素材来源与许可.md` 与 `LICENSE`（MIT）。
+- TASKS 新增 GitHub 发布阻塞任务与 v1.0.0 构建任务。
+
+### Changed
+
+- 安装包口径：不含知识库内容，仅框架与自绘示例；库由联网采集、用户导入与 AI 候选填充。
+- 性能预算改为 1 万条库口径。
+- `discovery.requireApproval` 设置项删除，审核强制开启。
+- 离线矩阵改为 BYOK 口径：AI 未配置时入口可见并引导，不禁用整块功能。
+
+### Fixed
+
+- 修正「定时任务可关闭审核」与用户强制审核要求的冲突。
+- 修正「AI 未配置按钮禁用」与 BYOK 可见性要求的冲突。
+
+### Known Issues
+
+- v1.0.0 安装包未构建；README 与 Release 均标注「待发布」。
+- GitHub 仓库/推送/Release 阻塞，等待用户授权。
+- 发版说明校验和为空，按制度不得发布。
+
+## [0.1.1] — 2026-11-08
+
+### Added
+
+- `LICENSE`（MIT，年份 2026，署名「界序 INTERFACE contributors」）。
+- `docs/素材来源与许可.md`：素材登记口径、字体/图标/依赖许可表、GSAP 许可冲突、用户导入规则。
+- 宪法 §15「许可与合规」：MIT、不登记软著、示例自绘、依赖白名单、字体/图标、用户导入与风格名不受保护。
+- DECISIONS D-019～D-026：导航栈、悬停预览、内容寻址、Rust 硬校验、rusqlite、BYOK、许可基线、GSAP 冲突。
+- H §3.4 左栏导航栈推入（240ms/栏宽/三路返回/滚动还原）。
+- H §5.3 卡片悬停自动预览（140ms/全局唯一共享层/滚动销毁/Tab 等效）。
+- B §6.6 中文优先三层搜索；§6.7 界面语言与集中词条表。
+- B §15 许可与合规；B 预览安全章节补充 Tauri 自定义协议判 local、CSP 响应头、opaque origin 等研究结论。
+- 数据模型：`assets` 改为内容寻址对象库，新增 `case_assets` 关联表。
+- TASKS 专项任务：中文搜索、BYOK、悬停层、导航栈、词条表、许可检查、素材登记。
+- Q-13～Q-16（并行工程产物处置、分词/拼音选型、WebView2 分发、签名与更新）。
+
+### Changed
+
+- 产品名统一为 **界序 INTERFACE**；`UI Motion Lab` 降为内部代号，不再出现在用户可见文案。
+- 七个 Phase 全部保留，不缩减；AI 从 Phase 5 接入，Phase 6 自动发现。
+- 数据库由 SQLx 改为 **rusqlite + bundled + 自写迁移器**。
+- AI 落库校验由「Zod」改为「Rust 硬门禁 + Zod 第二道」。
+- 预览运行时默认使用 CSS / WAAPI，GSAP 默认不打包。
+- README 增加开源声明；运行状态说明改为「存在并行脚手架，未纳入基线」。
+
+### Fixed
+
+- 删除 payload 内重复的跨案例引用字段，统一以 `case_relations` 为唯一真相。
+- 设置键、`discovery_task_id`、SearchProvider 安全约束、Phase 5/6 依赖顺序等跨文档不一致已修正。
+
+### Removed
+
+- 移除「产品名待定」的并列表述；移除 SQLx 作为默认选型。
+
+### Security
+
+- 依赖许可白名单与构建期检查（GPL/AGPL/LGPL/SSPL 阻断）。
+- BYOK：不内置密钥、不代理转发；密钥表述红线（不得称「加密保护」）。
+- 示例素材全部自绘，禁止第三方截图入包。
+
+### Known Issues
+
+- Theme 是否独立成域（Q-11）、导航结构（Q-02）、单主表（Q-03）仍待确认。
+- 工作区存在并行工程脚手架，与「只写文档」边界冲突，待 Q-13 裁决。
+- GSAP 许可与白名单冲突，默认不打包，待 D-026 裁决。
+- Playwright、视频抽帧、WebView2 分发等待确认。
+- 所有 Token 数值与阈值均为建议值，尚未在真实界面上验证。
+
+## [0.1.0] — 2026-11-08
+
+### Added
+
+- 项目治理基线：`PROJECT_CONSTITUTION.md`、`PROJECT_OVERVIEW.md`、`TASKS.md`、`DECISIONS.md`、`PROJECT_LOG.md`、`README.md`。
+- 启动前设计文档 A–J：PRD、技术架构、目录结构、ER 设计、TypeScript 数据模型、Provider 架构、AI 采集流程、UI 方案、七阶段拆分、阶段验收。
+- 架构自检报告 `docs/ARCHITECTURE-REVIEW.md`。
+- 目录骨架：`.agent/logs`、`.agent/temp`、`.agent/reports`、`docs/`、`artifacts/`。
+- 视觉参考图归档至 `artifacts/reference/`。
+
+### Changed
+
+- 默认主题定为「跟随系统」（非深色），仅用户手动切换后记忆选择。
+- 导航由 10 项平铺调整为 4 内容域 + 3 工具位（待确认）。
+- 数据模型建议单主表 + kind + 类型化 payload（待确认）。
+- 组件域明确 atoms / patterns 两层。
+- 跨域去重规则：一案例一主域，其余通过 `case_relations` 关联引用。
+- 增加底部类型条带（与左栏共用 `activeType`）与表格清单视图。
+- 增加 Theme 独立成域评估（推荐独立，待确认）。
+- 增加 AI 采集/分析流程、Provider 架构与架构自检报告。
+
+### Fixed
+
+- 无（本版本无代码）。
+
+### Removed
+
+- 无。
+
+### Security
+
+- 确立凭据存储、预览沙箱、SSRF 防护、版权与访问控制基线（仅文档约束）。
+
+### Known Issues
+
+- 产品名/工作区名分工未定。
+- 主题是否独立成域、底部类型条带方案待确认。
+- Playwright 采集方案、SQLx 选型、状态色扩展等待确认。
+- 所有 Token 数值与阈值均为建议值，尚未在真实界面上验证。
