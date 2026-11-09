@@ -2,7 +2,7 @@
 
 **v1.0.5 · 导入 HTML 安全预览 + 五类自绘场景** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版补齐导入 HTML 的清洗、独立窗口预览与 CSP/Sandbox 双重隔离，并把五类预览场景从个位数扩到 41 个自绘场景。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.5) → `界序 INTERFACE_1.0.5_x64-setup.exe`（6.06 MB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.5) → `INTERFACE_1.0.5_x64-setup.exe`（6.06 MB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
