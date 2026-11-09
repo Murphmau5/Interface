@@ -12,9 +12,13 @@ import { useUiStore } from "@/stores/uiStore";
 interface CaseListProps {
   cases: CaseSummary[];
   selectedId: string | null;
+  selectedIds: Set<string>;
   view: "grid" | "table";
   favoriteBusyId: string | null;
   onSelect: (id: string) => void;
+  onToggleMulti: (id: string) => void;
+  onMarqueeSelect: (ids: string[], additive: boolean) => void;
+  onClearMulti: () => void;
   onToggleFavorite: (id: string) => void;
 }
 
@@ -145,18 +149,22 @@ function FavoriteButton({
 function CaseCard({
   item,
   selected,
+  multiSelected,
   busy,
   poster,
   thumbHeight,
   onSelect,
+  onToggleMulti,
   onToggleFavorite,
 }: {
   item: CaseSummary;
   selected: boolean;
+  multiSelected: boolean;
   busy: boolean;
   poster: string | null;
   thumbHeight: number;
   onSelect: (id: string) => void;
+  onToggleMulti: (id: string) => void;
   onToggleFavorite: (id: string) => void;
 }) {
   const spec = parsePreviewSpec(item.payloadJson);
@@ -170,15 +178,25 @@ function CaseCard({
       aria-pressed={selected}
       aria-label={`${item.title}（${kindLabel(item.kind)}）`}
       title={`${item.title} · 更新 ${formatDateTime(item.updatedAt)}`}
-      onClick={() => onSelect(item.id)}
+      onClick={(event) => {
+        if (event.ctrlKey || event.metaKey) {
+          event.preventDefault();
+          onToggleMulti(item.id);
+          return;
+        }
+        onSelect(item.id);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onSelect(item.id);
+          if (event.ctrlKey || event.metaKey) onToggleMulti(item.id);
+          else onSelect(item.id);
         }
       }}
       {...cardHandlers}
+      data-case-id={item.id}
       data-selected={selected}
+      data-multi-selected={multiSelected}
       className="list-card group h-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
     >
       <div ref={thumbRef} className="list-card-thumb" style={{ height: thumbHeight }}>
@@ -222,13 +240,24 @@ function CaseCard({
 function CardList({
   cases,
   selectedId,
+  selectedIds,
   favoriteBusyId,
   onSelect,
+  onToggleMulti,
+  onMarqueeSelect,
+  onClearMulti,
   onToggleFavorite,
 }: Omit<CaseListProps, "view">) {
   const theme = useUiStore((state) => state.resolvedTheme);
   const anchorRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ x: number; y: number; additive: boolean; moved: boolean } | null>(null);
   const width = useContainerWidth(anchorRef);
+  const [marquee, setMarquee] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const columns = width >= 540 ? 3 : width >= 330 ? 2 : 1;
   const cardWidth = width > 0 ? (width - GRID_GAP * (columns - 1)) / columns : 0;
@@ -243,6 +272,69 @@ function CardList({
 
   const { start, end } = useWindowedRange(rows, rowHeight, anchorRef);
 
+  // 框选：从空白处按下拖动，松手时收集与选框相交的卡片
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-case-id]")) return;
+    if (target.closest("button, input, a, summary")) return;
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      additive: event.ctrlKey || event.metaKey,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const anchor = anchorRef.current;
+    if (!drag || !anchor) return;
+    if (!drag.moved) {
+      if (Math.abs(event.clientX - drag.x) < 4 && Math.abs(event.clientY - drag.y) < 4) return;
+      drag.moved = true;
+      document.body.style.userSelect = "none";
+    }
+    const anchorRect = anchor.getBoundingClientRect();
+    setMarquee({
+      left: Math.min(drag.x, event.clientX) - anchorRect.left,
+      top: Math.min(drag.y, event.clientY) - anchorRect.top,
+      width: Math.abs(event.clientX - drag.x),
+      height: Math.abs(event.clientY - drag.y),
+    });
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const anchor = anchorRef.current;
+    dragRef.current = null;
+    setMarquee(null);
+    document.body.style.userSelect = "";
+    if (!drag || !anchor) return;
+    if (!drag.moved) {
+      onClearMulti();
+      return;
+    }
+    const box = {
+      left: Math.min(drag.x, event.clientX),
+      right: Math.max(drag.x, event.clientX),
+      top: Math.min(drag.y, event.clientY),
+      bottom: Math.max(drag.y, event.clientY),
+    };
+    const hits: string[] = [];
+    anchor.querySelectorAll<HTMLElement>("[data-case-id]").forEach((element) => {
+      const rect = element.getBoundingClientRect();
+      const intersects =
+        rect.right > box.left &&
+        rect.left < box.right &&
+        rect.bottom > box.top &&
+        rect.top < box.bottom;
+      if (intersects && element.dataset.caseId) hits.push(element.dataset.caseId);
+    });
+    onMarqueeSelect(hits, drag.additive);
+  };
+
   if (width === 0) {
     return <div ref={anchorRef} className="relative w-full" />;
   }
@@ -252,6 +344,10 @@ function CardList({
       ref={anchorRef}
       className="relative w-full"
       style={{ height: Math.max(rows * rowHeight - GRID_GAP, 0) }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
     >
       {Array.from({ length: Math.max(end - start, 0) }, (_, offset) => {
         const row = start + offset;
@@ -273,10 +369,12 @@ function CardList({
                   key={item.id}
                   item={item}
                   selected={item.id === selectedId}
+                  multiSelected={selectedIds.has(item.id)}
                   busy={favoriteBusyId === item.id}
                   poster={spec ? getPosterUri(spec, theme) : null}
                   thumbHeight={thumbHeight}
                   onSelect={onSelect}
+                  onToggleMulti={onToggleMulti}
                   onToggleFavorite={onToggleFavorite}
                 />
               );
@@ -284,6 +382,20 @@ function CardList({
           </div>
         );
       })}
+
+      {marquee ? (
+        <div
+          aria-hidden
+          data-marquee
+          className="pointer-events-none absolute z-20 rounded-xs border border-accent-line bg-accent/10"
+          style={{
+            left: marquee.left,
+            top: marquee.top,
+            width: marquee.width,
+            height: marquee.height,
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -291,10 +403,12 @@ function CardList({
 function TableList({
   cases,
   selectedId,
+  selectedIds,
   favoriteBusyId,
   onSelect,
+  onToggleMulti,
   onToggleFavorite,
-}: Omit<CaseListProps, "view">) {
+}: Omit<CaseListProps, "view" | "onMarqueeSelect" | "onClearMulti">) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const { start, end } = useWindowedRange(cases.length, TABLE_ROW_HEIGHT, anchorRef);
   const visible = cases.slice(start, end);
@@ -321,12 +435,31 @@ function TableList({
 
           {visible.map((item) => {
             const selected = item.id === selectedId;
+            const multiSelected = selectedIds.has(item.id);
             return (
-              <tr key={item.id} data-selected={selected}>
+              <tr
+                key={item.id}
+                data-case-id={item.id}
+                data-selected={selected}
+                data-multi-selected={multiSelected}
+                onClick={(event) => {
+                  if (event.ctrlKey || event.metaKey) {
+                    event.preventDefault();
+                    onToggleMulti(item.id);
+                  }
+                }}
+              >
                 <td data-primary="true">
                   <button
                     type="button"
-                    onClick={() => onSelect(item.id)}
+                    onClick={(event) => {
+                      if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        onToggleMulti(item.id);
+                        return;
+                      }
+                      onSelect(item.id);
+                    }}
                     className="cell-title w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
                   >
                     {item.title}
@@ -371,8 +504,10 @@ export function CaseList(props: CaseListProps) {
       <TableList
         cases={props.cases}
         selectedId={props.selectedId}
+        selectedIds={props.selectedIds}
         favoriteBusyId={props.favoriteBusyId}
         onSelect={props.onSelect}
+        onToggleMulti={props.onToggleMulti}
         onToggleFavorite={props.onToggleFavorite}
       />
     );
@@ -382,8 +517,12 @@ export function CaseList(props: CaseListProps) {
     <CardList
       cases={props.cases}
       selectedId={props.selectedId}
+      selectedIds={props.selectedIds}
       favoriteBusyId={props.favoriteBusyId}
       onSelect={props.onSelect}
+      onToggleMulti={props.onToggleMulti}
+      onMarqueeSelect={props.onMarqueeSelect}
+      onClearMulti={props.onClearMulti}
       onToggleFavorite={props.onToggleFavorite}
     />
   );

@@ -42,8 +42,9 @@ export const SHORTCUT_ENTRIES: ShortcutEntry[] = [
   },
   {
     keys: ["Ctrl", "Enter"],
-    label: "切到联网搜索作用域",
+    label: "联网检索",
     scope: "搜索框内",
+    note: "默认只搜本地；按下才发起联网，结果只进「网络候选 · 未审核」",
   },
   {
     keys: ["Esc"],

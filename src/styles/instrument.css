@@ -221,6 +221,31 @@
     box-shadow: inset 0 1px 0 var(--panel-highlight);
   }
 
+  /* 多选：与详情选中区分开，用虚线与角标表示「纳入批量」 */
+  .list-card[data-multi-selected="true"] {
+    border-color: var(--accent);
+    border-style: dashed;
+    background-color: var(--accent-soft);
+  }
+
+  .list-card[data-multi-selected="true"]::after {
+    content: "✓";
+    position: absolute;
+    top: 8px;
+    right: 32px;
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-xs);
+    background-color: var(--accent);
+    color: var(--surface-raised);
+    font-size: 10px;
+    line-height: 1;
+    pointer-events: none;
+  }
+
   .list-card-thumb {
     position: relative;
     overflow: hidden;
@@ -399,6 +424,11 @@
 
   .list-table tbody tr[data-selected="true"] {
     background-color: var(--accent-soft);
+  }
+
+  .list-table tbody tr[data-multi-selected="true"] {
+    background-color: var(--accent-soft);
+    box-shadow: inset 2px 0 0 var(--accent);
   }
 
   .list-table td {

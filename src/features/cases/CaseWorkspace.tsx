@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, LayoutGrid, List, Plus, RotateCcw, Search, X } from "lucide-react";
+import { Copy, Download, Layers, LayoutGrid, List, Plus, RotateCcw, Search, X } from "lucide-react";
 
 import { PanelLayout } from "@/components/layout/PanelLayout";
 import { Button } from "@/components/ui/Button";
@@ -13,10 +13,13 @@ import { useDiscoveryFetchUrl, useDiscoverySearch } from "@/features/candidates/
 import { CaseDetail } from "@/features/cases/CaseDetail";
 import { CaseList } from "@/features/cases/CaseList";
 import { CreateCaseForm } from "@/features/cases/CreateCaseForm";
+import { buildBatchJson, buildBatchMarkdown } from "@/features/cases/markdown";
 import {
   useCaseFacets,
   useCaseQuery,
+  useCatalog,
   useCollections,
+  useExportBundle,
   useToggleFavorite,
 } from "@/features/cases/api";
 import { useAiSettings } from "@/features/settings/api";
@@ -24,13 +27,15 @@ import {
   CASE_KIND_DESCRIPTIONS,
   CASE_KIND_LABELS,
   COMPONENT_LAYER_OPTIONS,
+  CONFIDENCE_LABELS,
   CONFIDENCE_OPTIONS,
   PLATFORM_OPTIONS,
   SORT_OPTIONS,
   type CaseKind,
 } from "@/lib/constants";
-import type { CaseQueryInput } from "@/lib/ipc";
+import type { CaseQueryInput, CaseSummary, DiscoveryBatchResult } from "@/lib/ipc";
 import { caseActions } from "@/lib/caseActions";
+import { buildPreviewPrompt, parseCasePrompt, parsePreviewSpec } from "@/lib/preview";
 import type { NavSectionKey } from "@/lib/navigation";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -49,6 +54,9 @@ const SCOPE_OPTIONS = [
   { value: "local", label: "本地" },
   { value: "online", label: "联网" },
 ] as const;
+
+/** 查询变化后旧选择不再生效，用同一个空集合兜底 */
+const EMPTY_SELECTION: Set<string> = new Set();
 
 function workspaceCopy(props: CaseWorkspaceProps): {
   eyebrow: string;
@@ -114,6 +122,8 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const activeCollectionId = useUiStore((state) => state.activeCollectionId);
   const setActiveCollection = useUiStore((state) => state.setActiveCollection);
   const collections = useCollections();
+  const catalog = useCatalog();
+  const exportBundle = useExportBundle();
   const aiSettings = useAiSettings();
   const discoveryFetchUrl = useDiscoveryFetchUrl();
   const discoverySearch = useDiscoverySearch();
@@ -176,6 +186,16 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   const [searchDraft, setSearchDraft] = useState(filters.search);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 选择与「当时的查询」绑定：换类目 / 换筛选后旧选择自动失效，不需要 effect 清空
+  const [selection, setSelection] = useState<{ scope: string; ids: Set<string> }>(() => ({
+    scope: "",
+    ids: new Set(),
+  }));
+  const [selectionStatus, setSelectionStatus] = useState<{
+    scope: string;
+    tone: "ok" | "error";
+    text: string;
+  } | null>(null);
   // 命令面板的「新建案例」跨路由到达时，首帧就展开表单，避免闪一下空态
   const [creating, setCreating] = useState(
     () => kindScope !== null && pendingCreateKind === kindScope,
@@ -184,6 +204,8 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const [urlDraft, setUrlDraft] = useState("");
   const [queryDraft, setQueryDraft] = useState("");
   const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
+  // 联网结果只作为「网络候选」展示，不并入 items、不参与本地排序
+  const [onlineResults, setOnlineResults] = useState<DiscoveryBatchResult | null>(null);
 
   // 220ms 防抖后再把输入写入唯一筛选状态，查询由 SQL 执行
   useEffect(() => {
@@ -195,6 +217,31 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   const items = useMemo(() => casesQuery.data?.items ?? [], [casesQuery.data]);
   const total = casesQuery.data?.total ?? 0;
+
+  // 选择跟着当前查询走：切类目 / 改筛选 / 换搜索都清空，避免批量复制到看不见的条目
+  const selectionScope = [
+    scope,
+    queryInput.kind ?? "",
+    queryInput.platform ?? "",
+    queryInput.confidence ?? "",
+    queryInput.layer ?? "",
+    queryInput.categoryId ?? "",
+    queryInput.collectionId ?? "",
+    queryInput.search ?? "",
+    queryInput.sort ?? "",
+  ].join("|");
+
+  // 查询变化时选择失效；这里只做「跟随外部状态」的订阅，不主动清空
+  const multiSelectedIds = selection.scope === selectionScope ? selection.ids : EMPTY_SELECTION;
+  const activeSelectionStatus =
+    selectionStatus?.scope === selectionScope ? selectionStatus : null;
+
+  const updateSelection = (updater: (prev: Set<string>) => Set<string>) => {
+    setSelection((prev) => {
+      const base = prev.scope === selectionScope ? prev.ids : EMPTY_SELECTION;
+      return { scope: selectionScope, ids: updater(base) };
+    });
+  };
 
   // 命令面板点名的案例即使还没写回 selectedId，也先按它渲染详情
   const selected =
@@ -258,6 +305,49 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   const captureKind: CaseKind = props.scope === "kind" ? props.kind : "style";
 
+  const focusUrlInput = () => {
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLInputElement>('[aria-label="粘贴网址"]')?.focus();
+    });
+  };
+
+  /** Ctrl+Enter 与「本地没结果」提示共用：有 Key 就检索，没 Key 降级为粘贴网址 */
+  const runOnlineSearch = (rawQuery: string) => {
+    const query = rawQuery.trim();
+    setOnlineResults(null);
+    if (!query) {
+      setOnlineMessage("先输入关键词，再按 Ctrl+Enter 联网检索。");
+      return;
+    }
+    if (searchDraft.trim() !== filters.search) setFilter("search", searchDraft.trim());
+    if (!searchConfigured) {
+      setOnlineMessage("搜索服务未配置，已降级为粘贴网址抓取：粘贴公开 http/https 网址即可抓取候选。");
+      setFilter("scope", "online");
+      focusUrlInput();
+      return;
+    }
+    discoverySearch.mutate(
+      { query, kind: captureKind, limit: 8 },
+      {
+        onSuccess: (result) => {
+          if (!result.ok) {
+            setOnlineResults(null);
+            setOnlineMessage(`联网检索未完成：${result.message || result.code}`);
+            return;
+          }
+          setOnlineResults(result);
+          setOnlineMessage(
+            `联网检索：请求 ${result.requested} · 新增候选 ${result.created} · 重复 ${result.duplicates} · 失败 ${result.failed}`,
+          );
+        },
+        onError: (error) => {
+          setOnlineResults(null);
+          setOnlineMessage(`联网检索失败：${error.message}`);
+        },
+      },
+    );
+  };
+
   const handleUrlSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const url = urlDraft.trim();
@@ -293,6 +383,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       { query, kind: captureKind },
       {
         onSuccess: (result) => {
+          setOnlineResults(result.ok ? result : null);
           setOnlineMessage(
             `检索完成：请求 ${result.requested} · 新增 ${result.created} · 重复 ${result.duplicates} · 失败 ${result.failed}`,
           );
@@ -338,6 +429,131 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   const title = collection?.name ?? copy.title;
   const eyebrow = collection ? "LIBRARY / 合集" : copy.eyebrow;
+
+  const categoryLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const domain of catalog.data ?? []) {
+      for (const group of domain.groups) {
+        for (const category of group.categories) map.set(category.id, category.label);
+      }
+    }
+    return map;
+  }, [catalog.data]);
+
+  const selectedCases = useMemo(
+    () => items.filter((item) => multiSelectedIds.has(item.id)),
+    [items, multiSelectedIds],
+  );
+  const allSelected = items.length > 0 && selectedCases.length === items.length;
+
+  const specOf = (item: CaseSummary) => parsePreviewSpec(item.payloadJson);
+  const docInputFor = (item: CaseSummary) => {
+    const spec = specOf(item);
+    return {
+      title: item.title,
+      kindLabel: CASE_KIND_LABELS[item.kind as CaseKind] ?? item.kind,
+      categoryLabel: item.categoryId ? (categoryLabels.get(item.categoryId) ?? null) : null,
+      confidenceLabel: CONFIDENCE_LABELS[item.confidence] ?? item.confidence,
+      prompt: parseCasePrompt(item.payloadJson) ?? (spec ? buildPreviewPrompt(spec) : ""),
+      spec,
+    };
+  };
+  const jsonInputFor = (item: CaseSummary) => ({
+    id: item.id,
+    title: item.title,
+    kind: item.kind,
+    kindLabel: CASE_KIND_LABELS[item.kind as CaseKind] ?? item.kind,
+    categoryId: item.categoryId,
+    categoryLabel: item.categoryId ? (categoryLabels.get(item.categoryId) ?? null) : null,
+    confidence: item.confidence,
+    confidenceLabel: CONFIDENCE_LABELS[item.confidence] ?? item.confidence,
+    platform: item.platform,
+    tags: [] as string[],
+    updatedAt: item.updatedAt,
+    spec: specOf(item),
+  });
+
+  const toggleMulti = (id: string) => {
+    setSelectionStatus(null);
+    updateSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectionStatus(null);
+    updateSelection(() => (allSelected ? new Set<string>() : new Set(items.map((item) => item.id))));
+  };
+
+  const handleMarqueeSelect = (ids: string[], additive: boolean) => {
+    setSelectionStatus(null);
+    updateSelection((prev) => (additive ? new Set([...prev, ...ids]) : new Set(ids)));
+  };
+
+  const handleClearSelection = () => {
+    updateSelection(() => new Set<string>());
+    setSelectionStatus(null);
+  };
+
+  const handleCopySelection = () => {
+    if (selectedCases.length === 0) return;
+    const markdown = buildBatchMarkdown(selectedCases.map(docInputFor));
+    const started = performance.now();
+    const finish = (status: { tone: "ok" | "error"; text: string }) => {
+      setSelectionStatus({ scope: selectionScope, ...status });
+    };
+    if (!navigator.clipboard?.writeText) {
+      finish({ tone: "error", text: "复制失败：当前环境不支持剪贴板写入" });
+      return;
+    }
+    void navigator.clipboard
+      .writeText(markdown)
+      .then(() => {
+        const elapsed = performance.now() - started;
+        const elapsedLabel = elapsed < 10 ? `${elapsed.toFixed(1)}ms` : `${Math.round(elapsed)}ms`;
+        finish({
+          tone: "ok",
+          text: `已复制 ${selectedCases.length} 条 · ${markdown.length.toLocaleString(
+            "zh-CN",
+          )} 字 · ${elapsedLabel} · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`,
+        });
+      })
+      .catch((error: unknown) => {
+        finish({
+          tone: "error",
+          text: `复制失败：${error instanceof Error ? error.message : String(error)}`,
+        });
+      });
+  };
+
+  const handleExportSelection = () => {
+    if (selectedCases.length === 0) return;
+    const rows = selectedCases;
+    exportBundle.mutate(
+      {
+        title: `${title}-选中-${rows.length}`,
+        markdown: buildBatchMarkdown(rows.map(docInputFor)),
+        json: buildBatchJson(rows.map(jsonInputFor)),
+      },
+      {
+        onSuccess: (bundle) =>
+          setSelectionStatus({
+            scope: selectionScope,
+            tone: "ok",
+            text: `已导出 ${rows.length} 条（Markdown + JSON）：${bundle.markdownPath}`,
+          }),
+        onError: (error) =>
+          setSelectionStatus({
+            scope: selectionScope,
+            tone: "error",
+            text: `导出失败：${error.message}`,
+          }),
+      },
+    );
+  };
 
   const middle = (
     <div className="flex h-full min-h-0 flex-col">
@@ -419,8 +635,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
             onKeyDown={(event) => {
               if (event.ctrlKey && event.key === "Enter") {
                 event.preventDefault();
-                setOnlineMessage(null);
-                setFilter("scope", "online");
+                runOnlineSearch(searchDraft);
               }
             }}
             trailing={<Search size={13} strokeWidth={1.8} aria-hidden />}
@@ -437,7 +652,17 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               setFilter("scope", value);
             }}
           />
-          <span className="ml-auto" />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-7 px-2 text-2xs"
+            data-select-all
+            disabled={items.length === 0}
+            onClick={handleSelectAll}
+            title="按当前搜索与筛选结果全选（已载入的条目）"
+          >
+            {allSelected ? "取消全选" : `全选当前结果 · ${items.length}`}
+          </Button>
           <SegmentedControl
             label="列表视图"
             options={VIEW_OPTIONS}
@@ -565,6 +790,104 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         tabIndex={-1}
         className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-3 focus-visible:outline-none"
       >
+        {multiSelectedIds.size > 0 ? (
+          <div
+            data-selection-bar
+            className="sticky top-0 z-30 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-sm border border-accent-line bg-raised px-2.5 py-2 shadow-panel"
+          >
+            <span data-selection-count className="text-2xs font-medium text-ink">
+              已选 {multiSelectedIds.size} 条
+            </span>
+            <span className="text-2xs text-ink-faint">复制 / 导出只作用于这些条目</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                data-batch-action="copy"
+                icon={<Copy size={12} strokeWidth={1.9} aria-hidden />}
+                onClick={handleCopySelection}
+              >
+                复制 Markdown
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                data-batch-action="export"
+                disabled={exportBundle.isPending}
+                icon={<Download size={12} strokeWidth={1.9} aria-hidden />}
+                onClick={handleExportSelection}
+              >
+                {exportBundle.isPending ? "导出中…" : "导出文件"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleClearSelection}>
+                清空
+              </Button>
+            </div>
+            {activeSelectionStatus ? (
+              <p
+                role="status"
+                data-selection-status={activeSelectionStatus.tone}
+                className={
+                  activeSelectionStatus.tone === "error"
+                    ? "w-full break-all font-mono text-2xs leading-normal text-danger"
+                    : "w-full break-all font-mono text-2xs leading-normal text-accent"
+                }
+              >
+                {activeSelectionStatus.text}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {onlineResults ? (
+          <section
+            data-online-candidates
+            aria-label="网络候选，未审核"
+            className="rounded-sm border border-dashed border-accent-line bg-sunken px-2.5 py-2"
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-2xs font-semibold text-ink">网络候选 · 未审核</span>
+              <span className="text-2xs text-ink-faint">
+                {onlineResults.items.length} 条 · 不入库，也不参与本地排序
+              </span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <Button size="sm" variant="ghost" onClick={() => navigate("/discovery")}>
+                  去候选池审核
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setOnlineResults(null)}
+                  className="text-2xs text-ink-faint transition-colors hover:text-ink"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+            <ul className="mt-1.5 flex flex-col gap-1">
+              {onlineResults.items.slice(0, 8).map((item, index) => (
+                <li
+                  key={`${item.url}-${index}`}
+                  className="flex items-baseline gap-2 text-2xs leading-relaxed"
+                >
+                  <span className="shrink-0 rounded-xs border border-line px-1 text-ink-faint">
+                    候选
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-ink-soft" title={item.url}>
+                    {item.title?.trim() || item.url}
+                  </span>
+                  <span className="shrink-0 text-ink-faint">
+                    {item.outcome === "created"
+                      ? "待审核"
+                      : item.outcome === "duplicate"
+                        ? "已存在"
+                        : "失败"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         {props.scope === "kind" && creating ? (
           <CreateCaseForm
             kind={props.kind}
@@ -638,11 +961,42 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           <CaseList
             cases={items}
             selectedId={selected?.id ?? null}
+            selectedIds={multiSelectedIds}
             view={view}
             favoriteBusyId={favoriteBusyId}
             onSelect={setSelectedId}
+            onToggleMulti={toggleMulti}
+            onMarqueeSelect={handleMarqueeSelect}
+            onClearMulti={() => {
+              if (multiSelectedIds.size > 0) handleClearSelection();
+            }}
             onToggleFavorite={handleToggleFavorite}
           />
+        ) : null}
+
+        {!casesQuery.isPending &&
+        !casesQuery.isError &&
+        total === 0 &&
+        filters.scope === "local" &&
+        queryInput.search ? (
+          <div
+            data-local-empty-hint
+            className="flex flex-wrap items-center gap-2 rounded-sm border border-dashed border-line-strong bg-sunken px-3 py-2"
+          >
+            <span className="text-2xs text-ink-soft">本地没有找到，要不要联网找找</span>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={discoverySearch.isPending}
+              onClick={() => runOnlineSearch(filters.search)}
+            >
+              {searchConfigured
+                ? discoverySearch.isPending
+                  ? "联网检索中…"
+                  : "Ctrl+Enter 联网"
+                : "粘贴网址抓取"}
+            </Button>
+          </div>
         ) : null}
       </div>
     </div>

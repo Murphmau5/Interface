@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ChevronDown, Download, Eye, Pencil, Star, Trash2, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Download,
+  Eye,
+  FileText,
+  Pencil,
+  Star,
+  Trash2,
+  X,
+} from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 import { Button } from "@/components/ui/Button";
@@ -18,7 +29,7 @@ import {
   useSetCaseTags,
   useUpdatePayload,
 } from "@/features/cases/api";
-import { buildCaseJson, buildCaseMarkdown } from "@/features/cases/markdown";
+import { buildCaseBrief, buildCaseJson, buildCaseMarkdown } from "@/features/cases/markdown";
 import { PreviewPanel } from "@/features/preview/PreviewPanel";
 import { caseActions } from "@/lib/caseActions";
 import {
@@ -360,7 +371,11 @@ export function CaseDetail({
   const [tagMessage, setTagMessage] = useState<string | null>(null);
   const [collectionChoice, setCollectionChoice] = useState("");
   const [collectionMessage, setCollectionMessage] = useState<string | null>(null);
-  const [promptCopied, setPromptCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<{
+    tone: "ok" | "error";
+    target: "prompt" | "markdown" | null;
+    text: string;
+  } | null>(null);
 
   const pendingPayload = useRef<string | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -425,6 +440,7 @@ export function CaseDetail({
 
   const handleSpecChange = (next: PreviewSpec) => {
     setSpec(next);
+    setCopyStatus(null);
     const payload = serializePreview(item.payloadJson, next);
     pendingPayload.current = payload;
     setSaveState("saving");
@@ -482,6 +498,46 @@ export function CaseDetail({
       caseActions.exportCurrent = undefined;
     };
   });
+
+  const copyToClipboard = async (target: "prompt" | "markdown", text: string) => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("当前环境不支持剪贴板写入");
+      await navigator.clipboard.writeText(text);
+      const label = target === "prompt" ? "提示词" : " Markdown";
+      setCopyStatus({
+        tone: "ok",
+        target,
+        text: `已复制${label} · ${text.length.toLocaleString("zh-CN")} 字 · ${new Date().toLocaleTimeString(
+          "zh-CN",
+          { hour12: false },
+        )}`,
+      });
+    } catch (error) {
+      setCopyStatus({
+        tone: "error",
+        target,
+        text: `复制失败：${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  };
+
+  const handleCopyPrompt = () => {
+    void copyToClipboard("prompt", casePrompt);
+  };
+
+  const handleCopyMarkdown = () => {
+    void copyToClipboard(
+      "markdown",
+      buildCaseBrief({
+        title: item.title,
+        kindLabel,
+        categoryLabel,
+        confidenceLabel,
+        prompt: casePrompt,
+        spec,
+      }),
+    );
+  };
 
   const applyTags = (labels: string[], successText?: string) => {
     setTags.mutate(
@@ -684,27 +740,7 @@ export function CaseDetail({
           </section>
 
           <section aria-labelledby="prompt-heading" className="detail-section">
-            <SectionHead
-              id="prompt-heading"
-              title="提示词"
-              aside={
-                <button
-                  type="button"
-                  className="text-2xs text-ink-faint transition-colors hover:text-ink"
-                  onClick={() => {
-                    void navigator.clipboard
-                      .writeText(casePrompt)
-                      .then(() => {
-                        setPromptCopied(true);
-                        window.setTimeout(() => setPromptCopied(false), 1600);
-                      })
-                      .catch(() => setPromptCopied(false));
-                  }}
-                >
-                  {promptCopied ? "已复制" : "复制"}
-                </button>
-              }
-            />
+            <SectionHead id="prompt-heading" title="提示词" />
             <details className="detail-panel px-3 py-2.5">
               <summary className="cursor-pointer select-none text-2xs text-ink-soft">
                 展开条目提示词
@@ -713,6 +749,63 @@ export function CaseDetail({
                 {casePrompt}
               </pre>
             </details>
+          </section>
+
+          <section aria-labelledby="copy-heading" className="detail-section">
+            <SectionHead id="copy-heading" title="复制给 AI" />
+            <div className="detail-panel px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-copy-action="prompt"
+                  icon={
+                    copyStatus?.tone === "ok" && copyStatus.target === "prompt" ? (
+                      <Check size={12} strokeWidth={2.2} aria-hidden />
+                    ) : (
+                      <Copy size={12} strokeWidth={1.9} aria-hidden />
+                    )
+                  }
+                  onClick={handleCopyPrompt}
+                >
+                  {copyStatus?.tone === "ok" && copyStatus.target === "prompt"
+                    ? "已复制提示词"
+                    : "复制提示词"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-copy-action="markdown"
+                  icon={
+                    copyStatus?.tone === "ok" && copyStatus.target === "markdown" ? (
+                      <Check size={12} strokeWidth={2.2} aria-hidden />
+                    ) : (
+                      <FileText size={12} strokeWidth={1.9} aria-hidden />
+                    )
+                  }
+                  onClick={handleCopyMarkdown}
+                >
+                  {copyStatus?.tone === "ok" && copyStatus.target === "markdown"
+                    ? "已复制 Markdown"
+                    : "复制为 Markdown"}
+                </Button>
+              </div>
+              <p className="mt-1.5 text-2xs leading-normal text-ink-faint">
+                只复制条目内容（标题 / 内容域 / 类目 / 参数表 / 提示词），不含界面上的角标与计数。
+              </p>
+              {copyStatus ? (
+                <p
+                  role="status"
+                  data-copy-status={copyStatus.tone}
+                  className={cn(
+                    "mt-1.5 break-all font-mono text-2xs leading-normal",
+                    copyStatus.tone === "error" ? "text-danger" : "text-accent",
+                  )}
+                >
+                  {copyStatus.text}
+                </p>
+              ) : null}
+            </div>
           </section>
 
           <section aria-labelledby="tags-heading" className="detail-section">

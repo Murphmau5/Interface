@@ -870,6 +870,85 @@ export function installTauriStub(data) {
         case "ai_settings_get":
           return state.aiSettings;
 
+        case "discovery_search": {
+          window.__discoveryCalls = (window.__discoveryCalls || 0) + 1;
+          if (!state.aiSettings.searchCredential.configured) {
+            return {
+              ok: false,
+              code: "search_unconfigured",
+              message: "搜索服务未配置",
+              requested: 0,
+              created: 0,
+              duplicates: 0,
+              failed: 0,
+              items: [],
+            };
+          }
+          return {
+            ok: true,
+            code: "ok",
+            message: "",
+            requested: 3,
+            created: 2,
+            duplicates: 1,
+            failed: 0,
+            items: [
+              {
+                url: "https://example.com/glass-nav",
+                outcome: "created",
+                title: "玻璃拟态导航栏（网络候选）",
+                candidateId: "cand_1",
+                existingCandidateId: null,
+                code: null,
+                message: null,
+              },
+              {
+                url: "https://example.com/frosted-card",
+                outcome: "created",
+                title: "磨砂卡片悬停（网络候选）",
+                candidateId: "cand_2",
+                existingCandidateId: null,
+                code: null,
+                message: null,
+              },
+              {
+                url: "https://example.com/existing",
+                outcome: "duplicate",
+                title: "已收录的玻璃面板",
+                candidateId: null,
+                existingCandidateId: "cand_0",
+                code: null,
+                message: null,
+              },
+            ],
+          };
+        }
+
+        case "discovery_fetch_url": {
+          window.__discoveryCalls = (window.__discoveryCalls || 0) + 1;
+          const url = (input && input.url) || "";
+          return {
+            ok: true,
+            code: "ok",
+            message: "",
+            requested: 1,
+            created: 1,
+            duplicates: 0,
+            failed: 0,
+            items: [
+              {
+                url,
+                outcome: "created",
+                title: "粘贴网址抓取（网络候选）",
+                candidateId: "cand_url_1",
+                existingCandidateId: null,
+                code: null,
+                message: null,
+              },
+            ],
+          };
+        }
+
         case "plugin:event|listen":
           return ++eventId;
         case "plugin:event|unlisten":
