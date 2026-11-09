@@ -1,6 +1,6 @@
 [package]
 name = "jiexu-interface"
-version = "1.0.4"
+version = "1.0.5"
 description = "界序 INTERFACE — 双主题 UI 动效仪器台"
 authors = ["界序 INTERFACE contributors"]
 edition = "2021"

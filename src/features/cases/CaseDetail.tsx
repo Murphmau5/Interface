@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Download, Star, Trash2, X } from "lucide-react";
+import { Download, Eye, Star, Trash2, X } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 import { Button } from "@/components/ui/Button";
@@ -27,7 +27,12 @@ import {
   PLATFORM_LABELS,
   type CaseKind,
 } from "@/lib/constants";
-import { ipc, type AssetRecord, type CaseSummary } from "@/lib/ipc";
+import {
+  ipc,
+  type AssetRecord,
+  type CaseSummary,
+  type SanitizeReport,
+} from "@/lib/ipc";
 import {
   defaultPreviewSpec,
   parsePreviewSpec,
@@ -73,12 +78,59 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function parseSanitizeReport(raw: string | null): SanitizeReport | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SanitizeReport;
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeBadge(asset: AssetRecord): {
+  label: string;
+  title: string;
+  tone: "ok" | "error" | "muted";
+} | null {
+  if (asset.kind !== "html") return null;
+  const report = parseSanitizeReport(asset.sanitizeReport);
+
+  if (asset.sanitizeState === "cleaned") {
+    const summary = report
+      ? `已清洗：移除 ${report.removedTags} 个标签、${report.removedAttributes} 个属性、${report.removedUrls} 个外部引用`
+      : "已清洗";
+    return { label: "已清洗", title: summary, tone: "ok" };
+  }
+  if (asset.sanitizeState === "rejected") {
+    const reasons = report?.issues
+      .map((issue) => `第 ${issue.line} 行：${issue.message}`)
+      .join("\n");
+    return {
+      label: "清洗失败",
+      title: reasons || "清洗失败，不会进入预览",
+      tone: "error",
+    };
+  }
+  return { label: "未清洗", title: "尚未清洗，不会进入预览", tone: "muted" };
+}
+
 /** 素材区：窗口级拖拽导入，按内容哈希去重；失败逐条可见 */
 function AssetSection({ caseId }: { caseId: string }) {
   const assets = useCaseAssets(caseId);
   const importAssets = useImportAssets();
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [openingPreview, setOpeningPreview] = useState<string | null>(null);
   const importRef = useRef(importAssets.mutate);
+
+  const openPreview = (assetId: string) => {
+    setOpeningPreview(assetId);
+    ipc
+      .previewOpenHtml(assetId)
+      .catch((error: Error) =>
+        setStatus({ tone: "error", text: `预览打开失败：${error.message}` }),
+      )
+      .finally(() => setOpeningPreview(null));
+  };
 
   useEffect(() => {
     importRef.current = importAssets.mutate;
@@ -107,13 +159,21 @@ function AssetSection({ caseId }: { caseId: string }) {
                     text: `${rows.length - failed.length} 个已入库（复用 ${reused}），${
                       failed.length
                     } 个失败：${failed
-                      .map((row) => `${row.path} → ${row.error ?? "未知错误"}`)
+                      .map((row) => {
+                        const reasons = row.sanitize?.issues
+                          .slice(0, 3)
+                          .map((issue) => `第 ${issue.line} 行 ${issue.message}`)
+                          .join("；");
+                        return `${row.path} → ${row.error ?? "未知错误"}${
+                          reasons ? `（${reasons}）` : ""
+                        }`;
+                      })
                       .join("；")}`,
                   });
                 } else {
                   setStatus({
                     tone: "ok",
-                    text: `已导入 ${rows.length} 个文件（复用 ${reused} 个）。HTML 只存储并标记未清洗。`,
+                    text: `已导入 ${rows.length} 个文件（复用 ${reused} 个）。HTML 已按白名单清洗，清洗失败的条目不会进入预览。`,
                   });
                 }
               },
@@ -150,7 +210,7 @@ function AssetSection({ caseId }: { caseId: string }) {
       >
         <p className="text-sm font-medium text-ink">拖文件到窗口即可导入</p>
         <p className="mt-1 text-xs leading-normal text-ink-faint">
-          按 sha256 内容寻址存储，同一文件只存一份；单文件上限 32 MB。HTML 只保存并标记「未清洗」，不会执行。
+          按 sha256 内容寻址存储，同一文件只存一份；单文件上限 32 MB。HTML 入库即按白名单清洗，清洗失败的条目不会进入预览。
         </p>
       </div>
 
@@ -168,24 +228,51 @@ function AssetSection({ caseId }: { caseId: string }) {
 
       {rows.length ? (
         <ul className="mt-2 space-y-1.5">
-          {rows.map((asset) => (
-            <li
-              key={asset.id}
-              className="flex items-center justify-between gap-3 rounded-xs border border-line px-2.5 py-1.5"
-            >
-              <div className="min-w-0">
-                <div className="truncate text-meta text-ink">{asset.originalName}</div>
-                <div className="truncate font-mono text-2xs text-ink-faint">
-                  {asset.kind} · {formatBytes(asset.byteSize)} · {asset.sha256.slice(0, 10)}
+          {rows.map((asset) => {
+            const badge = sanitizeBadge(asset);
+            return (
+              <li
+                key={asset.id}
+                className="flex items-center justify-between gap-3 rounded-xs border border-line px-2.5 py-1.5"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-meta text-ink">{asset.originalName}</div>
+                  <div className="truncate font-mono text-2xs text-ink-faint">
+                    {asset.kind} · {formatBytes(asset.byteSize)} · {asset.sha256.slice(0, 10)}
+                  </div>
                 </div>
-              </div>
-              {asset.needsCleaning ? (
-                <span className="shrink-0 rounded-xs border border-line px-1.5 py-0.5 text-2xs text-ink-faint">
-                  未清洗
-                </span>
-              ) : null}
-            </li>
-          ))}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {badge ? (
+                    <span
+                      title={badge.title}
+                      className={cn(
+                        "rounded-xs border px-1.5 py-0.5 text-2xs",
+                        badge.tone === "error"
+                          ? "border-danger/40 text-danger"
+                          : badge.tone === "ok"
+                            ? "border-line text-ink-soft"
+                            : "border-line text-ink-faint",
+                      )}
+                    >
+                      {badge.label}
+                    </span>
+                  ) : null}
+                  {asset.kind === "html" && asset.sanitizeState === "cleaned" ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<Eye size={14} />}
+                      disabled={openingPreview === asset.id}
+                      onClick={() => openPreview(asset.id)}
+                      title="在隔离窗口中预览清洗后的 HTML"
+                    >
+                      预览
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="mt-2 text-2xs text-ink-faint">这条案例还没有素材。</p>

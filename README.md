@@ -1,8 +1,8 @@
 # 界序 INTERFACE
 
-**v1.0.4 · 界面与安装器同版重做** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版把设置页改成 Chrome 式结构、立起五级字号阶梯、把窗口名与最小化/最大化/关闭内嵌进页面，安装器收成单屏并随包分发 LICENSE。
+**v1.0.5 · 导入 HTML 安全预览 + 五类自绘场景** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版补齐导入 HTML 的清洗、独立窗口预览与 CSP/Sandbox 双重隔离，并把五类预览场景从个位数扩到 41 个自绘场景。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.4) → `INTERFACE_1.0.4_x64-setup.exe`（5.99 MB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.5) → `界序 INTERFACE_1.0.5_x64-setup.exe`（6.06 MB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
@@ -31,14 +31,14 @@
 
 | 项 | 状态 |
 |---|---|
-| 版本 | **v1.0.4（界面与安装器同版重做）** |
-| 阶段 | Phase 2 收口完成；本版做界面与安装器的视觉收口，功能面不变 |
+| 版本 | **v1.0.5（导入 HTML 安全预览 + 五类自绘场景）** |
+| 阶段 | Phase 2 收口完成；本版补齐导入 HTML 的安全执行链路与预览场景 |
 | 安装包 | **已发布**（NSIS，Windows x64，未签名），见 GitHub Releases |
 | 文档 | 治理七件套 + A–J 十份启动文档 + 架构自检，已就绪 |
 | 代码 | 工程脚手架已通过安装 / 启动 / 卸载实测；功能项按验收逐条转 ✅ |
-| 发布渠道 | GitHub Releases `v1.0.4` |
+| 发布渠道 | GitHub Releases `v1.0.5` |
 
-> 本版重点：设置页改为 Chrome 式左栏分组 + 内容卡片，新增五级字号阶梯与间距密度 token；窗口标题与最小化/最大化/关闭按钮内嵌进页面（真实窗口下已验拖动、双击最大化、最小化、关闭、最大化后按钮区不压内容、1000px 窄宽度不挤左栏）；安装器收成单屏，去掉欢迎页/独立目录页/独立许可页，LICENSE 随包分发；延续 1.0.3 的升级修正，覆盖升级仍不弹二选一页。功能面与 v1.0.2 一致。
+> 本版重点：导入 HTML 走白名单清洗（`<script>`、事件属性、`javascript:`、`@import`、CSS 外链 `url()`、iframe/object/embed 全部剥离，逐条返回可读原因并落库）；预览跑在独立 `WebviewWindow`，Rust 派发层按窗口标签拒绝全部 IPC，iframe 保持 `sandbox="allow-scripts"` 且无 `allow-same-origin`；CSP 使用显式协议源并用 CDP 实测；五类预览场景扩到 41 个，全部自绘、无外部素材。切换 100 次、400 条虚拟滚动与空闲回落均实测通过。
 
 ## 功能清单
 

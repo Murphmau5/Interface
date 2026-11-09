@@ -104,6 +104,25 @@ export interface CollectionSummary {
   createdAt: string;
 }
 
+export type SanitizeState = "pending" | "cleaned" | "rejected" | "not-applicable";
+
+export interface SanitizeIssue {
+  kind: string;
+  message: string;
+  line: number;
+}
+
+export interface SanitizeReport {
+  state: "cleaned" | "rejected";
+  bytesIn: number;
+  bytesOut: number;
+  removedTags: number;
+  removedAttributes: number;
+  removedUrls: number;
+  issues: SanitizeIssue[];
+  issuesTruncated: boolean;
+}
+
 export interface AssetRecord {
   id: string;
   sha256: string;
@@ -113,6 +132,10 @@ export interface AssetRecord {
   relPath: string;
   originalName: string;
   needsCleaning: boolean;
+  sanitizeState: SanitizeState;
+  sanitizedRelPath: string | null;
+  sanitizeReport: string | null;
+  sanitizedAt: string | null;
   createdAt: string;
 }
 
@@ -121,7 +144,13 @@ export interface ImportOutcome {
   ok: boolean;
   reused: boolean;
   asset: AssetRecord | null;
+  sanitize: SanitizeReport | null;
   error: string | null;
+}
+
+export interface PreviewHandle {
+  label: string;
+  url: string;
 }
 
 export type CandidateStatus = "pending" | "approved" | "rejected";
@@ -239,6 +268,10 @@ export const ipc = {
   assetsImport: (caseId: string | null, paths: string[]) =>
     call<ImportOutcome[]>("assets_import", { caseId, paths }),
   assetsListForCase: (caseId: string) => call<AssetRecord[]>("assets_list_for_case", { caseId }),
+  assetsSanitizeHtml: (assetId: string) =>
+    call<AssetRecord>("assets_sanitize_html", { assetId }),
+  previewOpenHtml: (assetId: string) =>
+    call<PreviewHandle>("preview_open_html", { assetId }),
 
   candidatesList: (status?: CandidateStatus | "all") =>
     call<CandidateRow[]>("candidates_list", { status }),
