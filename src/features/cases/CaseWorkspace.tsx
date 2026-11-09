@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Layers, LayoutGrid, List, Search, X } from "lucide-react";
+import { Layers, LayoutGrid, List, Search } from "lucide-react";
 
 import { PanelLayout } from "@/components/layout/PanelLayout";
 import { Button } from "@/components/ui/Button";
@@ -10,13 +10,13 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { CaseDetail } from "@/features/cases/CaseDetail";
 import { CaseList } from "@/features/cases/CaseList";
 import { CreateCaseForm } from "@/features/cases/CreateCaseForm";
-import { useCases, useToggleFavorite, type CaseScope } from "@/features/cases/api";
+import { useCases, useCatalog, useToggleFavorite, type CaseScope } from "@/features/cases/api";
 import {
   CASE_KIND_DESCRIPTIONS,
   CASE_KIND_LABELS,
   type CaseKind,
 } from "@/lib/constants";
-import { findCategoryLabel, type NavSectionKey } from "@/lib/navigation";
+import type { NavSectionKey } from "@/lib/navigation";
 import { useUiStore } from "@/stores/uiStore";
 
 type CaseWorkspaceProps =
@@ -67,14 +67,23 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const scope: CaseScope = props.scope;
   const kind = props.scope === "kind" ? props.kind : undefined;
   const copy = workspaceCopy(props);
-  const casesQuery = useCases(scope, kind);
   const toggleFavorite = useToggleFavorite();
   const sectionKey = props.scope === "kind" ? (props.kind as NavSectionKey) : null;
   const selectedCategory = useUiStore((state) =>
     sectionKey ? (state.categoryBySection[sectionKey] ?? null) : null,
   );
   const clearCategory = useUiStore((state) => state.clearCategory);
-  const categoryLabel = sectionKey ? findCategoryLabel(sectionKey, selectedCategory) : null;
+  const catalog = useCatalog();
+  const casesQuery = useCases(scope, kind, selectedCategory);
+
+  const domain = kind ? catalog.data?.find((entry) => entry.domain === kind) : undefined;
+  const category =
+    domain?.groups
+      .flatMap((group) => group.categories)
+      .find((entry) => entry.id === selectedCategory) ?? null;
+  const categoryLabel = category?.label ?? null;
+  const domainLabel = kind ? CASE_KIND_LABELS[kind] : null;
+  const title = categoryLabel ?? copy.title;
 
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"grid" | "table">("grid");
@@ -93,7 +102,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   });
 
   const selected =
-    cases.find((item) => item.id === selectedId) ?? filtered[0] ?? cases[0] ?? null;
+    filtered.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
 
   const handleToggleFavorite = (id: string) => {
     toggleFavorite.mutate(id, {
@@ -115,30 +124,38 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const middle = (
     <div className="flex h-full min-h-0 flex-col">
       <header className="shrink-0 border-b border-line px-5 pb-4 pt-5">
-        <div className="label-eyebrow">{copy.eyebrow}</div>
+        <div className="label-eyebrow">
+          {categoryLabel && domainLabel ? `${domainLabel} / 类目` : copy.eyebrow}
+        </div>
         <div className="mt-1.5 flex items-center gap-2">
-          <h1 className="text-display font-semibold tracking-tight text-ink">{copy.title}</h1>
+          <h1 className="text-display font-semibold tracking-tight text-ink">{title}</h1>
           <span className="rounded-pill border border-line px-2 py-0.5 font-mono text-2xs text-ink-faint">
             {filtered.length}
           </span>
         </div>
-        <p className="mt-1 text-meta leading-normal text-ink-faint">{copy.description}</p>
+        <p className="mt-1 text-meta leading-normal text-ink-faint">
+          {categoryLabel
+            ? "该类目下的全部条目；计数来自本地 categories 表的真实统计。"
+            : copy.description}
+        </p>
 
         {sectionKey && categoryLabel ? (
-          <div className="mt-2 flex items-center gap-1.5">
-            <span className="inline-flex items-center rounded-xs border border-accent-line bg-accent-soft px-1.5 py-0.5 text-2xs text-ink">
-              类目 · {categoryLabel}
-            </span>
-            <span className="text-2xs text-ink-faint">类目字段 Phase 2 接入，暂不参与筛选</span>
+          <nav aria-label="类目路径" className="mt-2 flex flex-wrap items-center gap-1.5 text-2xs">
             <button
               type="button"
-              aria-label="清除已选类目"
               onClick={() => clearCategory(sectionKey)}
-              className="flex h-4 w-4 items-center justify-center rounded-xs text-ink-faint hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+              className="rounded-xs px-1 py-0.5 text-ink-soft transition-colors duration-[var(--motion-fast)] hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
             >
-              <X size={10} strokeWidth={2} aria-hidden />
+              {domainLabel}
             </button>
-          </div>
+            <span aria-hidden className="text-ink-faint">
+              ›
+            </span>
+            <span className="rounded-xs border border-accent-line bg-accent-soft px-1.5 py-0.5 text-ink">
+              {categoryLabel}
+            </span>
+            <span className="ml-1 text-ink-faint">Esc 先清类目，再按一次返回域</span>
+          </nav>
         ) : null}
 
         <div className="mt-3.5 flex items-center gap-2">
@@ -166,7 +183,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 focus-visible:outline-none"
       >
         {scope === "kind" && kind ? (
-          <CreateCaseForm kind={kind} onCreated={handleCreated} />
+          <CreateCaseForm kind={kind} categoryId={selectedCategory} onCreated={handleCreated} />
         ) : null}
 
         {listError ? (
@@ -206,9 +223,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
             description={
               search.trim()
                 ? "清空搜索词，或换一个关键词。"
-                : scope === "kind"
-                  ? "用上方表单写入第一条案例，数据会落到本地 SQLite。"
-                  : "先去内容域创建案例并收藏，再回到这里查看。"
+                : categoryLabel
+                  ? "该类目还没有案例，用上方表单新建一条即可自动归类。"
+                  : scope === "kind"
+                    ? "用上方表单写入第一条案例，数据会落到本地 SQLite。"
+                    : "先去内容域创建案例并收藏，再回到这里查看。"
             }
             action={
               search.trim() ? (
@@ -259,5 +278,5 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     </div>
   );
 
-  return <PanelLayout label={copy.title} middle={middle} detail={detail} />;
+  return <PanelLayout label={title} middle={middle} detail={detail} />;
 }

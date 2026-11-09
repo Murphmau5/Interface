@@ -14,6 +14,7 @@ export interface CaseSummary {
   summary: string;
   confidence: string;
   isFavorite: boolean;
+  categoryId: string | null;
   createdAt: string;
   updatedAt: string;
   payloadJson: string;
@@ -24,6 +25,25 @@ export interface CreateCaseInput {
   kind: string;
   confidence?: string;
   summary?: string;
+  categoryId?: string;
+  payloadJson?: string;
+}
+
+export interface CatalogCategory {
+  id: string;
+  label: string;
+  count: number;
+}
+
+export interface CatalogGroup {
+  label: string;
+  categories: CatalogCategory[];
+}
+
+export interface CatalogDomain {
+  domain: string;
+  total: number;
+  groups: CatalogGroup[];
 }
 
 export interface AppInfo {
@@ -74,17 +94,24 @@ export const ipc = {
   casesList: (options?: {
     kind?: string;
     favoriteOnly?: boolean;
+    categoryId?: string;
     limit?: number;
   }) =>
     call<CaseSummary[]>("cases_list", {
       kind: options?.kind,
       favoriteOnly: options?.favoriteOnly ?? false,
+      categoryId: options?.categoryId,
       limit: options?.limit ?? 200,
     }),
   casesCreate: (input: CreateCaseInput) => call<CaseSummary>("cases_create", { input }),
   casesRename: (id: string, title: string) => call<CaseSummary>("cases_rename", { id, title }),
   casesToggleFavorite: (id: string) => call<boolean>("cases_toggle_favorite", { id }),
   casesSoftDelete: (id: string) => call<void>("cases_soft_delete", { id }),
+  casesUpdatePayload: (id: string, payloadJson: string) =>
+    call<CaseSummary>("cases_update_payload", { id, payloadJson }),
+  casesExportMarkdown: (title: string, content: string) =>
+    call<string>("cases_export_markdown", { title, content }),
   casesCounts: () => call<Record<string, number>>("cases_counts"),
+  catalogList: () => call<CatalogDomain[]>("catalog_list"),
   appInfo: () => call<AppInfo>("app_info"),
 };

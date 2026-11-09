@@ -18,7 +18,7 @@ import {
 import { Resizer } from "@/components/ui/Resizer";
 import { ThemeController } from "@/app/ThemeController";
 import { useAppInfo, useSettings, useSetSetting } from "@/features/settings/api";
-import { useCaseCounts } from "@/features/cases/api";
+import { useCaseCounts, useCatalog } from "@/features/cases/api";
 import { PANEL_LIMITS, SETTINGS_KEYS } from "@/lib/constants";
 import {
   CONTENT_SECTION_KEYS,
@@ -102,9 +102,11 @@ export function AppShell() {
   const openNavSection = useUiStore((state) => state.openNavSection);
   const closeNavSection = useUiStore((state) => state.closeNavSection);
   const selectCategory = useUiStore((state) => state.selectCategory);
+  const clearCategory = useUiStore((state) => state.clearCategory);
   const settings = useSettings();
   const setSetting = useSetSetting();
   const counts = useCaseCounts();
+  const catalog = useCatalog();
   const appInfo = useAppInfo();
   const hydrated = useRef(false);
   const rootNavRef = useRef<HTMLDivElement | null>(null);
@@ -138,18 +140,22 @@ export function AppShell() {
     if (nav) nav.scrollTop = 0;
   }, [navOpen, activeSection]);
 
-  // Esc / Alt+← 返回；栈深上限 2 层，二级面板内不再推入
+  // Esc / Alt+← 返回：先清类目，再关面板；栈深上限 2 层，二级面板内不再推入
   useEffect(() => {
     if (!navOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" || (event.altKey && event.key === "ArrowLeft")) {
         event.preventDefault();
+        if (activeSection && categoryBySection[activeSection]) {
+          clearCategory(activeSection);
+          return;
+        }
         closeNavSection();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navOpen, closeNavSection]);
+  }, [navOpen, activeSection, categoryBySection, clearCategory, closeNavSection]);
 
   const commitLeftWidth = (width: number) => {
     setSetting.mutate(
@@ -180,6 +186,12 @@ export function AppShell() {
 
   const section = activeSection ? NAV_SECTIONS[activeSection] : null;
   const kindCounts = counts.data;
+  const domainCatalog = activeSection
+    ? catalog.data?.find((domain) => domain.domain === NAV_SECTIONS[activeSection]?.kind)
+    : undefined;
+  const secondaryGroups = domainCatalog?.groups ?? section?.groups ?? [];
+  const sectionTotal = domainCatalog?.total
+    ?? (section?.kind ? kindCounts?.[section.kind] ?? 0 : null);
 
   const countFor = (key: NavSectionKey): number | null => {
     const kind = NAV_SECTIONS[key].kind;
@@ -275,7 +287,7 @@ export function AppShell() {
               <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-accent" />
               <span className="text-2xs text-ink-faint">SQLite · 本地模式</span>
               <span className="ml-auto font-mono text-2xs text-ink-faint">
-                v{appInfo.data?.appVersion ?? "1.0.0"}
+                v{appInfo.data?.appVersion ?? "1.0.1"}
               </span>
             </div>
           </div>
@@ -301,9 +313,9 @@ export function AppShell() {
                   {section?.label ?? "—"}
                 </div>
               </div>
-              {section?.kind ? (
+              {sectionTotal !== null ? (
                 <span className="mt-3 shrink-0 font-mono text-2xs text-ink-faint">
-                  {counts.data?.[section.kind] ?? 0} 条
+                  {sectionTotal} 条
                 </span>
               ) : section?.unavailable ? (
                 <span className="mt-3 shrink-0 rounded-xs border border-line px-1 py-0.5 font-mono text-2xs text-ink-faint">
@@ -313,7 +325,23 @@ export function AppShell() {
             </div>
 
             <div ref={secondaryNavRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-              {section?.groups.map((group) => (
+              {activeSection && NAV_SECTIONS[activeSection].kind && catalog.isLoading ? (
+                <p className="px-2 py-1 text-meta text-ink-faint">类目加载中…</p>
+              ) : null}
+              {activeSection && NAV_SECTIONS[activeSection].kind && catalog.isError ? (
+                <div className="px-2 py-1">
+                  <p className="text-meta text-danger">类目加载失败</p>
+                  <button
+                    type="button"
+                    onClick={() => void catalog.refetch()}
+                    className="mt-1 text-meta text-ink-soft underline decoration-line-strong underline-offset-2 hover:text-ink"
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : null}
+
+              {secondaryGroups.map((group) => (
                 <div key={group.label} className="mb-4">
                   <div className="label-eyebrow px-2 pb-1.5">{group.label}</div>
                   <div className="flex flex-col gap-0.5">
@@ -321,6 +349,8 @@ export function AppShell() {
                       const selected =
                         activeSection !== null &&
                         categoryBySection[activeSection] === category.id;
+                      const count =
+                        "count" in category ? (category as { count: number }).count : null;
                       return (
                         <button
                           key={category.id}
@@ -335,19 +365,25 @@ export function AppShell() {
                           )}
                         >
                           <span className="truncate">{category.label}</span>
-                          <span className="ml-auto font-mono text-2xs text-ink-faint">0</span>
+                          <span className="ml-auto font-mono text-2xs text-ink-faint">
+                            {count ?? "—"}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
               ))}
+
+              {activeSection && !catalog.isLoading && secondaryGroups.length === 0 ? (
+                <p className="px-2 py-1 text-meta text-ink-faint">该域暂无类目。</p>
+              ) : null}
             </div>
 
             <div className="border-t border-line px-3 py-2.5">
               <p className="text-2xs leading-normal text-ink-faint">{section?.footnote}</p>
               <p className="mt-1 text-2xs leading-normal text-ink-faint">
-                栈深上限 2 层：选择类目会直接聚焦中栏列表，不再推入。
+                栈深上限 2 层：选择类目直接筛选中栏；Esc 先清类目，再按一次返回域。
               </p>
             </div>
           </div>

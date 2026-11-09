@@ -140,7 +140,7 @@ export function ToolView({ section }: ToolViewProps) {
 
           <Card className="bg-raised px-4 py-2">
             <div className="label-eyebrow py-2">规划中的类目</div>
-            {navSection.groups.map((group) => (
+            {navSection.groups?.map((group) => (
               <div key={group.label} className="border-b border-line py-2.5 last:border-b-0">
                 <div className="text-meta font-medium text-ink-soft">{group.label}</div>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">

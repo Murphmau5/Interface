@@ -1,56 +1,43 @@
 import { useState } from "react";
 import { Play, RotateCcw, Square } from "lucide-react";
 
-import { PreviewStage } from "@/features/preview/PreviewStage";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Switch } from "@/components/ui/Switch";
-import { Tooltip } from "@/components/ui/Tooltip";
-import { describePreview, PREVIEW_TYPE_LABELS, type PreviewSpec } from "@/lib/preview";
+import { ParamPanel } from "@/features/preview/ParamPanel";
+import { PreviewStage } from "@/features/preview/PreviewStage";
+import { describePreview, PREVIEW_KIND_LABELS, type PreviewSpec } from "@/lib/preview";
 import { usePrefersReducedMotion } from "@/lib/useReducedMotion";
 import { useUiStore } from "@/stores/uiStore";
 
 interface PreviewPanelProps {
-  spec: PreviewSpec | null;
-  payloadJson: string;
+  spec: PreviewSpec;
+  onChange: (next: PreviewSpec) => void;
 }
 
-export function PreviewPanel({ spec, payloadJson }: PreviewPanelProps) {
-  const [playing, setPlaying] = useState(false);
+export function PreviewPanel({ spec, onChange }: PreviewPanelProps) {
+  const [playing, setPlaying] = useState(true);
   const [loop, setLoop] = useState(true);
   const [revision, setRevision] = useState(0);
   const userReduceMotion = useUiStore((state) => state.reduceMotion);
   const systemReduceMotion = usePrefersReducedMotion();
   const reducedMotion = userReduceMotion || systemReduceMotion;
 
-  if (!spec) {
-    const hasPreviewNode = payloadJson.trim().startsWith("{") && payloadJson.includes("preview");
-    return (
-      <Card className="instrument-grid relative min-h-56 overflow-hidden bg-sunken p-4">
-        <EmptyState
-          compact
-          title="这条案例没有可播放的预览"
-          description={
-            hasPreviewNode
-              ? "payload 里的 preview 字段不合法（类型 / 时长 / 缓动未通过校验），所以不播放。"
-              : "Phase 1 只内置了三条示例案例带预览规格；自建案例的 payload 为空，这里不会播放假动画。"
-          }
-        />
-      </Card>
-    );
-  }
+  const replay = () => {
+    setRevision((value) => value + 1);
+    setPlaying(true);
+  };
 
   const togglePlay = () => {
     if (playing) {
       setPlaying(false);
       return;
     }
-    setRevision((value) => value + 1);
-    setPlaying(true);
+    replay();
   };
 
-  const replay = () => {
+  const updateAndReplay = (next: PreviewSpec) => {
+    onChange(next);
     setRevision((value) => value + 1);
     setPlaying(true);
   };
@@ -60,14 +47,20 @@ export function PreviewPanel({ spec, payloadJson }: PreviewPanelProps) {
       <Card className="relative overflow-hidden bg-sunken">
         <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
           <span className="font-mono text-2xs tracking-[0.12em] text-ink-faint">
-            PREVIEW / {PREVIEW_TYPE_LABELS[spec.type]}
+            PREVIEW / {PREVIEW_KIND_LABELS[spec.kind]}
           </span>
           <span className="font-mono text-2xs text-ink-faint">
-            {playing ? (loop && !reducedMotion ? "LOOP" : "PLAYING") : "FRAME 00"}
+            {playing ? (loop && !reducedMotion ? "LOOP" : "PLAYING") : "PAUSED"}
           </span>
         </div>
         <div className="relative h-56">
-          <PreviewStage spec={spec} playing={playing} loop={loop && !reducedMotion} revision={revision} />
+          <PreviewStage
+            spec={spec}
+            playing={playing}
+            loop={loop && !reducedMotion}
+            revision={revision}
+            interactive
+          />
         </div>
       </Card>
 
@@ -88,7 +81,9 @@ export function PreviewPanel({ spec, payloadJson }: PreviewPanelProps) {
         >
           重播
         </Button>
-        <span className="ml-auto font-mono text-2xs text-ink-faint">{describePreview(spec)}</span>
+        <span className="ml-auto min-w-0 truncate font-mono text-2xs text-ink-faint">
+          {describePreview(spec)}
+        </span>
       </div>
 
       <Switch
@@ -103,13 +98,13 @@ export function PreviewPanel({ spec, payloadJson }: PreviewPanelProps) {
         }
       />
 
-      {reducedMotion ? (
-        <Tooltip content="来自系统 prefers-reduced-motion 或设置中的「减少动效」">
-          <span tabIndex={0} className="w-fit text-2xs text-ink-faint underline-offset-2">
-            减少动效已生效
-          </span>
-        </Tooltip>
-      ) : null}
+      <Card className="px-4 py-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <span className="label-eyebrow">参数</span>
+          <span className="font-mono text-2xs text-ink-faint">改值即时生效 · 无需应用</span>
+        </div>
+        <ParamPanel spec={spec} onChange={updateAndReplay} />
+      </Card>
     </div>
   );
 }

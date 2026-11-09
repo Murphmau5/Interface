@@ -24,6 +24,9 @@ pub fn run() {
             commands::cases::cases_rename,
             commands::cases::cases_toggle_favorite,
             commands::cases::cases_soft_delete,
+            commands::cases::cases_update_payload,
+            commands::cases::cases_export_markdown,
+            commands::catalog::catalog_list,
             commands::system::app_info,
         ])
         .run(tauri::generate_context!())

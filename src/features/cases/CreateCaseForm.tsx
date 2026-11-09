@@ -4,23 +4,46 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { useCreateCase } from "@/features/cases/api";
+import { useCatalog, useCreateCase } from "@/features/cases/api";
 import {
   CASE_KIND_LABELS,
   CONFIDENCE_OPTIONS,
   type CaseKind,
 } from "@/lib/constants";
+import { defaultPreviewSpec, serializePreview } from "@/lib/preview";
 
 interface CreateCaseFormProps {
   kind: CaseKind;
+  /** 当前左栏选中的类目，新建时默认带上 */
+  categoryId?: string | null;
   onCreated: (id: string) => void;
 }
 
-export function CreateCaseForm({ kind, onCreated }: CreateCaseFormProps) {
+export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormProps) {
   const [title, setTitle] = useState("");
   const [confidence, setConfidence] = useState("unknown");
+  const [category, setCategory] = useState(categoryId ?? "");
+  const [lastCategoryId, setLastCategoryId] = useState(categoryId ?? null);
   const [error, setError] = useState<string | null>(null);
   const createCase = useCreateCase();
+  const catalog = useCatalog();
+
+  // 左栏换类目时同步默认值；在渲染期调整，避免 effect 里 setState 引发级联渲染
+  if (categoryId !== lastCategoryId) {
+    setLastCategoryId(categoryId ?? null);
+    setCategory(categoryId ?? "");
+  }
+
+  const domain = catalog.data?.find((entry) => entry.domain === kind);
+  const categoryOptions = [
+    { value: "", label: "未归类" },
+    ...(domain?.groups.flatMap((group) =>
+      group.categories.map((entry) => ({
+        value: entry.id,
+        label: `${group.label} / ${entry.label}`,
+      })),
+    ) ?? []),
+  ];
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -31,7 +54,13 @@ export function CreateCaseForm({ kind, onCreated }: CreateCaseFormProps) {
     }
 
     createCase.mutate(
-      { title: trimmed, kind, confidence },
+      {
+        title: trimmed,
+        kind,
+        confidence,
+        categoryId: category || undefined,
+        payloadJson: serializePreview("{}", defaultPreviewSpec(kind)),
+      },
       {
         onSuccess: (created) => {
           setTitle("");
@@ -66,8 +95,17 @@ export function CreateCaseForm({ kind, onCreated }: CreateCaseFormProps) {
         }}
       />
 
-      <div className="mt-2 flex items-end gap-2">
-        <div className="min-w-0 flex-1">
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="min-w-0">
+          <Select
+            aria-label="所属类目"
+            label="类目"
+            options={categoryOptions}
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          />
+        </div>
+        <div className="min-w-0">
           <Select
             aria-label="置信度"
             label="置信度"
@@ -79,6 +117,9 @@ export function CreateCaseForm({ kind, onCreated }: CreateCaseFormProps) {
             onChange={(event) => setConfidence(event.target.value)}
           />
         </div>
+      </div>
+
+      <div className="mt-2 flex justify-end">
         <Button
           type="submit"
           variant="primary"

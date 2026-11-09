@@ -1,8 +1,8 @@
 # 界序 INTERFACE
 
-**v1.0.0 · 初始框架预览版** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版只验证界面骨架与预览思路，AI 分析与自动发现标记为「规划中」。
+**v1.0.1 · 预览体系与真实类目版** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版交付可调预览渲染器、SQLite 真实类目与案例闭环导出。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.0) → `INTERFACE_1.0.0_x64-setup.exe`（5.66 MB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.1) → `INTERFACE_1.0.1_x64-setup.exe`（5.70 MB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
@@ -31,14 +31,14 @@
 
 | 项 | 状态 |
 |---|---|
-| 版本 | **v1.0.0（初始框架预览版）** |
-| 阶段 | Phase 0 文档基线完成；脚手架已构建出包 |
+| 版本 | **v1.0.1（预览体系与真实类目版）** |
+| 阶段 | Phase 2 完成：预览渲染器、类目落库、案例闭环与导出 |
 | 安装包 | **已发布**（NSIS，Windows x64，未签名），见 GitHub Releases |
 | 文档 | 治理七件套 + A–J 十份启动文档 + 架构自检，已就绪 |
 | 代码 | 工程脚手架已通过安装 / 启动 / 卸载实测；功能项按验收逐条转 ✅ |
-| 发布渠道 | GitHub Releases `v1.0.0` |
+| 发布渠道 | GitHub Releases `v1.0.1` |
 
-> 首次发布的目标是**跑通骨架**：三栏外壳、双主题切换、底部类型条带、左栏导航栈、本地库与预览框架。AI 分析、自动发现等能力在后续版本接入。
+> 本版重点：预览按类型拆成五个渲染器并可调参；左栏类目改为 SQLite 真实统计；「新建 → 调参 → 实时预览 → 自动存库 → 导出 Markdown」闭环可用；窗口默认打开在最小可用尺寸。AI 分析与自动发现仍在后续版本接入。
 
 ## 功能清单
 
@@ -100,12 +100,12 @@
 
 ## 安装方式（Windows）
 
-1. 从 [GitHub Releases v1.0.0](https://github.com/Murphmau5/Interface/releases/tag/v1.0.0) 下载 `INTERFACE_1.0.0_x64-setup.exe`（5,932,704 字节 / 5.66 MB）。GitHub 会将附件名 ASCII 化，本地构建产物的原名是 `界序 INTERFACE_1.0.0_x64-setup.exe`。
+1. 从 [GitHub Releases v1.0.1](https://github.com/Murphmau5/Interface/releases/tag/v1.0.1) 下载 `INTERFACE_1.0.1_x64-setup.exe`（5,976,498 字节 / 5.70 MB）。GitHub 会将附件名 ASCII 化，本地构建产物的原名是 `界序 INTERFACE_1.0.1_x64-setup.exe`。
 2. 核对 SHA-256：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.0_x64-setup.exe"
-# D963BC0EA1B70BBA0B017F044B0A352D162E069C76AE60C48A32F390D382A75B
+Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.1_x64-setup.exe"
+# 4F954F124B676A69DC44F2AC42F1C05E50036E3836019CFF19AD221442CE7093
 ```
 
 3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。

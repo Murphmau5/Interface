@@ -25,9 +25,10 @@ export interface NavSection {
   label: string;
   route: string;
   kind?: CaseKind;
-  /** true 表示该域在 Phase 1 只有占位内容，界面标注「未接入」 */
+  /** true 表示该域只有占位内容，界面标注「未接入」 */
   unavailable?: boolean;
-  groups: NavCategoryGroup[];
+  /** 内容域的类目已落库（catalog_list），这里只给工具位保留占位分组 */
+  groups?: NavCategoryGroup[];
   footnote: string;
 }
 
@@ -37,130 +38,35 @@ export const NAV_SECTIONS: Record<NavSectionKey, NavSection> = {
     label: "风格",
     route: "/style",
     kind: "style",
-    groups: [
-      {
-        label: "形态与质感",
-        categories: [
-          { id: "style.neu", label: "新拟态" },
-          { id: "style.glass", label: "玻璃拟态" },
-          { id: "style.flat", label: "扁平" },
-          { id: "style.skeuo", label: "拟物" },
-        ],
-      },
-      {
-        label: "组织方式",
-        categories: [
-          { id: "style.minimal", label: "极简" },
-          { id: "style.bento", label: "Bento" },
-          { id: "style.editorial", label: "编辑式" },
-          { id: "style.dark", label: "Dark UI" },
-        ],
-      },
-    ],
-    footnote: "子类计数将在 Phase 2 随分类字段接入；当前为 0。",
+    footnote: "类目与计数来自本地 categories 表；选择类目后中栏只显示该类目条目。",
   },
   motion: {
     key: "motion",
     label: "动效",
     route: "/motion",
     kind: "motion",
-    groups: [
-      {
-        label: "转场",
-        categories: [
-          { id: "motion.page", label: "页面转场" },
-          { id: "motion.overlay", label: "浮层转场" },
-          { id: "motion.view", label: "视图切换" },
-        ],
-      },
-      {
-        label: "交互",
-        categories: [
-          { id: "motion.micro", label: "微交互" },
-          { id: "motion.list", label: "列表与卡片" },
-          { id: "motion.scroll", label: "滚动联动" },
-        ],
-      },
-    ],
-    footnote: "子类计数将在 Phase 2 随分类字段接入；当前为 0。",
+    footnote: "动效类目按「转场 / 交互」分组，计数为软删除之外的真实条数。",
   },
   feedback: {
     key: "feedback",
     label: "反馈与状态",
     route: "/feedback",
     kind: "feedback",
-    groups: [
-      {
-        label: "状态反馈",
-        categories: [
-          { id: "feedback.success", label: "成功" },
-          { id: "feedback.error", label: "错误" },
-          { id: "feedback.warning", label: "警告" },
-          { id: "feedback.info", label: "信息" },
-        ],
-      },
-      {
-        label: "反馈组件",
-        categories: [
-          { id: "feedback.toast", label: "Toast / Snackbar" },
-          { id: "feedback.loading", label: "加载与骨架" },
-          { id: "feedback.empty", label: "空状态与错误页" },
-          { id: "feedback.validation", label: "表单校验" },
-        ],
-      },
-    ],
-    footnote: "子类计数将在 Phase 2 随分类字段接入；当前为 0。",
+    footnote: "反馈类目覆盖状态反馈与反馈组件，含按压反馈示例。",
   },
   component: {
     key: "component",
     label: "组件",
     route: "/component",
     kind: "component",
-    groups: [
-      {
-        label: "基础控件 atoms",
-        categories: [
-          { id: "component.button", label: "Button" },
-          { id: "component.input", label: "Input / Select" },
-          { id: "component.switch", label: "Switch / Checkbox" },
-          { id: "component.card", label: "Card" },
-        ],
-      },
-      {
-        label: "复合模式 patterns",
-        categories: [
-          { id: "component.nav", label: "导航结构" },
-          { id: "component.command", label: "命令面板" },
-          { id: "component.settings-row", label: "设置项行" },
-          { id: "component.notice", label: "顶部胶囊通知" },
-        ],
-      },
-    ],
-    footnote: "atoms / patterns 的筛选将在 Phase 2 接入；当前为 0。",
+    footnote: "atoms / patterns 两组均来自本地类目表，计数实时统计。",
   },
   theme: {
     key: "theme",
     label: "主题",
     route: "/theme",
     kind: "theme",
-    groups: [
-      {
-        label: "结构与映射",
-        categories: [
-          { id: "theme.tokens", label: "Token 两层" },
-          { id: "theme.parity", label: "双主题对等" },
-          { id: "theme.swap", label: "换肤策略" },
-        ],
-      },
-      {
-        label: "案例",
-        categories: [
-          { id: "theme.snapshot", label: "深浅对照" },
-          { id: "theme.system", label: "系统跟随" },
-        ],
-      },
-    ],
-    footnote: "theme 作为独立 kind 尚待最终确认；分类计数当前为 0。",
+    footnote: "主题类目分「结构与映射」与「案例」两组。",
   },
   workspace: {
     key: "workspace",
@@ -244,15 +150,3 @@ export const CONTENT_SECTION_KEYS: NavSectionKey[] = [
 ];
 
 export const TOOL_SECTION_KEYS: NavSectionKey[] = ["workspace", "discovery", "settings"];
-
-export function findCategoryLabel(
-  sectionKey: NavSectionKey,
-  categoryId: string | null,
-): string | null {
-  if (!categoryId) return null;
-  for (const group of NAV_SECTIONS[sectionKey].groups) {
-    const match = group.categories.find((category) => category.id === categoryId);
-    if (match) return match.label;
-  }
-  return null;
-}
