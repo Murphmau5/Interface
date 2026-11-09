@@ -3,7 +3,8 @@
 use tauri::State;
 
 use crate::content_pkg::{
-    self, ImportReport, InstalledPackage, PackageLimits, UninstallReport, FEED_URL_SETTING,
+    self, ImportReport, InstalledPackage, PackageLimits, UninstallReport, UpdateApplyReport,
+    UpdateCheck, FEED_URL_SETTING,
 };
 use crate::db::Db;
 use crate::error::AppError;
@@ -100,4 +101,34 @@ pub async fn content_package_uninstall(
         return Err(AppError::InvalidInput("内容包 id 不能为空".into()));
     }
     content_pkg::uninstall_package(&db.pool, package_id).await
+}
+
+/// 检查更新：只读，不写入。未配置地址时返回 configured=false，不报错。
+#[tauri::command]
+pub async fn content_package_check_update(
+    db: State<'_, Db>,
+    url: Option<String>,
+) -> Result<UpdateCheck, AppError> {
+    content_pkg::check_update(
+        &db.pool,
+        url.as_deref(),
+        false,
+        &PackageLimits::default(),
+    )
+    .await
+}
+
+/// 安装更新：用户显式点击后才执行下载与合并。
+#[tauri::command]
+pub async fn content_package_apply_update(
+    db: State<'_, Db>,
+    url: Option<String>,
+) -> Result<UpdateApplyReport, AppError> {
+    content_pkg::apply_update(
+        &db.pool,
+        url.as_deref(),
+        false,
+        &PackageLimits::default(),
+    )
+    .await
 }

@@ -66,6 +66,8 @@ fn dispatch(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
             commands::content::content_package_import,
             commands::content::content_package_install_url,
             commands::content::content_package_uninstall,
+            commands::content::content_package_check_update,
+            commands::content::content_package_apply_update,
             commands::system::app_info,
         ]
     }

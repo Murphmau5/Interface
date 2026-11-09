@@ -86,7 +86,10 @@ impl Serialize for AppError {
             AppError::ContentPackage { code, message } => {
                 map.serialize_entry("code", code)?;
                 map.serialize_entry("message", message)?;
-                map.serialize_entry("retryable", &(code == "E_PKG_DOWNLOAD"))?;
+                map.serialize_entry("retryable", &matches!(
+                    code.as_str(),
+                    "E_PKG_DOWNLOAD" | "E_PKG_FEED_UNREACHABLE" | "E_PKG_FEED_HTTP"
+                ))?;
             }
         }
         map.end()

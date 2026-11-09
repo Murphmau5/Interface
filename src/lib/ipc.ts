@@ -340,6 +340,38 @@ export interface ContentPackageUninstallReport {
   keptFavorite: number;
 }
 
+export interface ContentPackageUpdateCheck {
+  configured: boolean;
+  feedUrl: string | null;
+  status: "not-configured" | "up-to-date" | "update-available";
+  packageId: string | null;
+  packageName: string | null;
+  installedVersion: string | null;
+  latestVersion: string | null;
+  totalItems: number;
+  added: number;
+  changed: number;
+  removed: number;
+  keptModified: number;
+  keptDeleted: number;
+  unaffected: number;
+  affected: number;
+}
+
+export interface ContentPackageUpdateSummary {
+  added: number;
+  updated: number;
+  skipped: number;
+  kept: number;
+  removed: number;
+}
+
+export interface ContentPackageUpdateReport {
+  report: ContentPackageImportReport;
+  summary: ContentPackageUpdateSummary;
+  previousVersion: string | null;
+}
+
 function isEnvelope(value: unknown): value is AppErrorEnvelope {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -440,4 +472,8 @@ export const ipc = {
     call<ContentPackageImportReport>("content_package_install_url", { url }),
   contentPackageUninstall: (packageId: string) =>
     call<ContentPackageUninstallReport>("content_package_uninstall", { packageId }),
+  contentPackageCheckUpdate: (url?: string) =>
+    call<ContentPackageUpdateCheck>("content_package_check_update", { url }),
+  contentPackageApplyUpdate: (url?: string) =>
+    call<ContentPackageUpdateReport>("content_package_apply_update", { url }),
 };

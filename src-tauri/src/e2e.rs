@@ -248,6 +248,182 @@ mod tests {
 
     #[tokio::test]
     #[cfg(windows)]
+    async fn content_package_update_check_and_apply() {
+        use crate::content_pkg::{self, PackageLimits, TRUSTED_KEYS_SETTING};
+        use crate::error::AppError;
+
+        async fn make_env() -> (std::path::PathBuf, sqlx::SqlitePool, [u8; 32]) {
+            let data_dir = std::env::temp_dir().join(format!("jiexu-update-e2e-{}", Uuid::new_v4()));
+            let pool = crate::db::connect(&data_dir).await.expect("创建测试数据库");
+            let seed = [0x51u8; 32];
+            let public_key = content_pkg::fixture_public_key(&seed);
+            sqlx::query(
+                "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+            )
+            .bind(TRUSTED_KEYS_SETTING)
+            .bind(crate::sha256::hex(&public_key))
+            .execute(&pool)
+            .await
+            .expect("写入测试信任公钥");
+            (data_dir, pool, seed)
+        }
+
+        fn error_code<T>(result: Result<T, AppError>, case: &str) -> String {
+            match result {
+                Err(AppError::ContentPackage { code, .. }) => code,
+                Err(other) => panic!("{case}：期望内容包错误，实际 {other:?}"),
+                Ok(_) => panic!("{case}：期望失败却成功"),
+            }
+        }
+
+        // ---- 正常升级：新增 / 更新 / 保留用户改动 / 移除，四种结果一次覆盖 ----
+        let (data_dir, pool, seed) = make_env().await;
+        let limits = PackageLimits::default();
+        let keys = content_pkg::resolve_trusted_keys(&pool).await.expect("解析公钥");
+        let v1 = content_pkg::fixture_package(
+            &seed,
+            "e2e.update",
+            "1.0.0",
+            &[("a", "标题 A"), ("b", "标题 B"), ("e", "标题 E")],
+        );
+        content_pkg::import_package(&pool, &v1, "online", None, &keys, &limits)
+            .await
+            .expect("安装旧版本");
+
+        // 用户改过的条目：更新时必须保留
+        sqlx::query("UPDATE cases SET title = '用户改过' WHERE id = 'pkg:e2e.update:a'")
+            .execute(&pool)
+            .await
+            .expect("模拟用户改动");
+
+        let v2 = content_pkg::fixture_package_with(
+            &seed,
+            "e2e.update",
+            "1.1.0",
+            "1.0.0",
+            &[("a", "标题 A2"), ("c", "标题 C"), ("d", "标题 D"), ("e", "标题 E2")],
+            &["b"],
+        );
+
+        let (url, server) = spawn_binary_server(v2.clone(), "application/zip");
+        let check = content_pkg::check_update(&pool, Some(&url), true, &limits)
+            .await
+            .expect("检查更新");
+        server.join().expect("等待检查服务器");
+        assert_eq!(check.status, "update-available");
+        assert_eq!(check.installed_version.as_deref(), Some("1.0.0"));
+        assert_eq!(check.latest_version.as_deref(), Some("1.1.0"));
+        assert_eq!(check.added, 2, "c、d 应算新增");
+        assert_eq!(check.changed, 1, "e 内容变化应算更新");
+        assert_eq!(check.kept_modified, 1, "a 被用户改过，应保留");
+        assert_eq!(check.removed, 1, "b 在移除清单里");
+        assert_eq!(check.affected, 5);
+
+        let (url, server) = spawn_binary_server(v2, "application/zip");
+        let applied = content_pkg::apply_update(&pool, Some(&url), true, &limits)
+            .await
+            .expect("安装更新");
+        server.join().expect("等待更新服务器");
+        assert_eq!(applied.previous_version.as_deref(), Some("1.0.0"));
+        assert_eq!(applied.report.package.version, "1.1.0");
+        assert_eq!(applied.summary.added, 2);
+        assert_eq!(applied.summary.updated, 1);
+        assert_eq!(applied.summary.kept, 1);
+        assert_eq!(applied.summary.removed, 1);
+        assert_eq!(applied.summary.skipped, 0);
+
+        let kept: String =
+            sqlx::query_scalar("SELECT title FROM cases WHERE id = 'pkg:e2e.update:a'")
+                .fetch_one(&pool)
+                .await
+                .expect("读取保留条目");
+        assert_eq!(kept, "用户改过", "用户改动不应被覆盖");
+        let upgraded: String =
+            sqlx::query_scalar("SELECT title FROM cases WHERE id = 'pkg:e2e.update:e'")
+                .fetch_one(&pool)
+                .await
+                .expect("读取更新条目");
+        assert_eq!(upgraded, "标题 E2");
+        let new_item: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM cases WHERE id IN ('pkg:e2e.update:c','pkg:e2e.update:d') AND deleted_at IS NULL",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("读取新增条目");
+        assert_eq!(new_item, 2);
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        // ---- 签名不符 ----
+        let (data_dir, pool, _seed) = make_env().await;
+        let forged = content_pkg::fixture_package_with(
+            &[0x52u8; 32],
+            "e2e.update",
+            "2.0.0",
+            "1.0.0",
+            &[("a", "伪造")],
+            &[],
+        );
+        let (url, server) = spawn_binary_server(forged, "application/zip");
+        let result = content_pkg::check_update(&pool, Some(&url), true, &PackageLimits::default()).await;
+        server.join().ok();
+        assert_eq!(
+            error_code(result, "签名不符"),
+            "E_PKG_SIGNATURE"
+        );
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        // ---- 版本过低 ----
+        let (data_dir, pool, seed) = make_env().await;
+        let too_new = content_pkg::fixture_package_with(
+            &seed,
+            "e2e.update",
+            "2.0.0",
+            "99.0.0",
+            &[("a", "未来版本")],
+            &[],
+        );
+        let (url, server) = spawn_binary_server(too_new, "application/zip");
+        let result = content_pkg::check_update(&pool, Some(&url), true, &PackageLimits::default()).await;
+        server.join().ok();
+        assert_eq!(error_code(result, "版本过低"), "E_PKG_APP_TOO_OLD");
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        // ---- feed 不可达 ----
+        let (data_dir, pool, _seed) = make_env().await;
+        let listener = TcpListener::bind("127.0.0.1:0").expect("占位端口");
+        let address = listener.local_addr().expect("读取端口");
+        drop(listener);
+        let url = format!("http://{address}/content-package.zip");
+        let result = content_pkg::check_update(
+            &pool,
+            Some(&url),
+            true,
+            &PackageLimits::default(),
+        )
+        .await;
+        assert_eq!(
+            error_code(result, "feed 不可达"),
+            "E_PKG_FEED_UNREACHABLE"
+        );
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&data_dir);
+
+        // ---- 未配置地址：不报错，明确返回未配置 ----
+        let (data_dir, pool, _seed) = make_env().await;
+        let check = content_pkg::check_update(&pool, None, false, &PackageLimits::default())
+            .await
+            .expect("未配置地址不应报错");
+        assert!(!check.configured);
+        assert_eq!(check.status, "not-configured");
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[tokio::test]
+    #[cfg(windows)]
     async fn full_ai_chain_and_fetch_dedupe() {
         let data_dir = std::env::temp_dir().join(format!("jiexu-e2e-{}", Uuid::new_v4()));
         let pool = crate::db::connect(&data_dir).await.expect("创建测试数据库");

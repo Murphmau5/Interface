@@ -205,6 +205,86 @@ pub struct UninstallReport {
     pub kept_favorite: i64,
 }
 
+/// 检查更新结果。`status` 只有三种：未配置、已是最新、有新版本。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheck {
+    pub configured: bool,
+    pub feed_url: Option<String>,
+    pub status: String,
+    pub package_id: Option<String>,
+    pub package_name: Option<String>,
+    pub installed_version: Option<String>,
+    pub latest_version: Option<String>,
+    pub total_items: i64,
+    pub added: i64,
+    pub changed: i64,
+    pub removed: i64,
+    pub kept_modified: i64,
+    pub kept_deleted: i64,
+    pub unaffected: i64,
+    /// 本次更新会触碰的条目数：新增 + 更新 + 保留改动/删除 + 移除。
+    pub affected: i64,
+}
+
+impl UpdateCheck {
+    fn not_configured() -> Self {
+        Self {
+            configured: false,
+            feed_url: None,
+            status: "not-configured".into(),
+            package_id: None,
+            package_name: None,
+            installed_version: None,
+            latest_version: None,
+            total_items: 0,
+            added: 0,
+            changed: 0,
+            removed: 0,
+            kept_modified: 0,
+            kept_deleted: 0,
+            unaffected: 0,
+            affected: 0,
+        }
+    }
+}
+
+/// 更新结果摘要：新增 / 更新 / 跳过 / 保留 / 移除，对应导入统计的口语化分组。
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSummary {
+    pub added: i64,
+    pub updated: i64,
+    pub skipped: i64,
+    pub kept: i64,
+    pub removed: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateApplyReport {
+    pub report: ImportReport,
+    pub summary: UpdateSummary,
+    pub previous_version: Option<String>,
+}
+
+impl UpdateSummary {
+    fn from_stats(stats: &ImportStats) -> Self {
+        Self {
+            added: stats.created,
+            updated: stats.updated,
+            // 内容没变，或同 ID 属于用户自建数据：不触碰
+            skipped: stats.unchanged + stats.skipped_user_data,
+            // 用户改过 / 删过的条目：保留用户结果，不被包覆盖
+            kept: stats.skipped_modified
+                + stats.skipped_deleted
+                + stats.kept_modified
+                + stats.kept_favorite,
+            removed: stats.removed,
+        }
+    }
+}
+
 /* -------------------------------- 工具 --------------------------------- */
 
 fn pkg_err(code: &str, message: impl Into<String>) -> AppError {
@@ -214,9 +294,17 @@ fn pkg_err(code: &str, message: impl Into<String>) -> AppError {
     }
 }
 
+/// 下载阶段的错误按「地址问题」「网络不可达」分开，避免前端只能显示一句「更新失败」。
 fn from_fetch(err: AppError) -> AppError {
     match err {
-        AppError::Fetch { code, message } => pkg_err("E_PKG_DOWNLOAD", format!("{message}（{code}）")),
+        AppError::Fetch { code, message } => {
+            let mapped = match code.as_str() {
+                "E_FETCH_TIMEOUT" | "E_NETWORK" => "E_PKG_FEED_UNREACHABLE",
+                "E_URL_INVALID" | "E_URL_SCHEME" | "E_URL_BLOCKED" => "E_PKG_FEED_INVALID",
+                _ => "E_PKG_DOWNLOAD",
+            };
+            pkg_err(mapped, format!("{message}（{code}）"))
+        }
         other => other,
     }
 }
@@ -518,7 +606,7 @@ pub fn load_package(
     match compare_versions(&manifest.min_app_version, current_app_version()) {
         Some(1) => {
             return Err(pkg_err(
-                "E_PKG_VERSION",
+                "E_PKG_APP_TOO_OLD",
                 format!(
                     "内容包要求应用版本 ≥ {}，当前为 {}",
                     manifest.min_app_version,
@@ -1447,9 +1535,11 @@ pub async fn download_package(
             .await
             .map_err(|err| {
                 if err.is_timeout() {
-                    pkg_err("E_PKG_DOWNLOAD", "下载超时，请稍后重试")
+                    pkg_err("E_PKG_FEED_UNREACHABLE", "访问在线地址超时，请检查网络后重试")
+                } else if err.is_connect() {
+                    pkg_err("E_PKG_FEED_UNREACHABLE", "无法连接到在线地址，请检查地址与网络")
                 } else {
-                    pkg_err("E_PKG_DOWNLOAD", format!("下载失败：{err}"))
+                    pkg_err("E_PKG_FEED_UNREACHABLE", format!("访问在线地址失败：{err}"))
                 }
             })?;
         if response.status().is_redirection() {
@@ -1457,16 +1547,16 @@ pub async fn download_package(
                 .headers()
                 .get(reqwest::header::LOCATION)
                 .and_then(|value| value.to_str().ok())
-                .ok_or_else(|| pkg_err("E_PKG_DOWNLOAD", "重定向响应缺少 Location"))?;
+                .ok_or_else(|| pkg_err("E_PKG_FEED_INVALID", "重定向响应缺少 Location"))?;
             let next = current
                 .join(location)
-                .map_err(|_| pkg_err("E_PKG_DOWNLOAD", format!("重定向地址无法解析：{location}")))?;
+                .map_err(|_| pkg_err("E_PKG_FEED_INVALID", format!("重定向地址无法解析：{location}")))?;
             current = crate::fetch::validate_url(next.as_str(), allow_loopback)
                 .await
                 .map_err(from_fetch)?;
             hops += 1;
             if hops > crate::fetch::MAX_REDIRECTS {
-                return Err(pkg_err("E_PKG_DOWNLOAD", "重定向次数过多，已停止"));
+                return Err(pkg_err("E_PKG_FEED_INVALID", "重定向次数过多，已停止"));
             }
             continue;
         }
@@ -1475,8 +1565,8 @@ pub async fn download_package(
 
     if !response.status().is_success() {
         return Err(pkg_err(
-            "E_PKG_DOWNLOAD",
-            format!("内容包地址返回 HTTP {}", response.status().as_u16()),
+            "E_PKG_FEED_HTTP",
+            format!("在线地址返回 HTTP {}", response.status().as_u16()),
         ));
     }
     if let Some(length) = response.content_length() {
@@ -1509,6 +1599,157 @@ pub async fn download_package(
     Ok(body)
 }
 
+/* ------------------------------ 在线更新 ------------------------------ */
+
+async fn resolve_feed_url(
+    pool: &SqlitePool,
+    raw: Option<&str>,
+) -> Result<Option<String>, AppError> {
+    if let Some(value) = raw {
+        let trimmed = value.trim();
+        return Ok((!trimmed.is_empty()).then(|| trimmed.to_string()));
+    }
+    let saved: Option<String> =
+        sqlx::query_scalar("SELECT value FROM settings WHERE key = ?1")
+            .bind(FEED_URL_SETTING)
+            .fetch_optional(pool)
+            .await?;
+    Ok(saved
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty()))
+}
+
+/// 拉取 feed 指向的内容包，校验签名与最低版本后与已安装版本比较。
+///
+/// 只读：不写库、不改任何设置。未配置地址时返回 `configured = false` 而不是报错。
+pub async fn check_update(
+    pool: &SqlitePool,
+    raw_url: Option<&str>,
+    allow_loopback: bool,
+    limits: &PackageLimits,
+) -> Result<UpdateCheck, AppError> {
+    let Some(url) = resolve_feed_url(pool, raw_url).await? else {
+        return Ok(UpdateCheck::not_configured());
+    };
+    let bytes = download_package(&url, allow_loopback, limits).await?;
+    let keys = resolve_trusted_keys(pool).await?;
+    let loaded = load_package(&bytes, limits, &keys)?;
+    let prepared = prepare_items(&loaded)?;
+    let manifest = &loaded.manifest;
+
+    let installed = sqlx::query_as::<_, InstalledPackage>(
+        "SELECT * FROM content_packages WHERE id = ?1",
+    )
+    .bind(&manifest.id)
+    .fetch_optional(pool)
+    .await?;
+    let installed_version = installed.as_ref().map(|row| row.version.clone());
+
+    let mut check = UpdateCheck {
+        configured: true,
+        feed_url: Some(url),
+        status: "up-to-date".into(),
+        package_id: Some(manifest.id.clone()),
+        package_name: Some(manifest.name.clone()),
+        installed_version: installed_version.clone(),
+        latest_version: Some(manifest.version.clone()),
+        total_items: manifest.items.len() as i64,
+        added: 0,
+        changed: 0,
+        removed: 0,
+        kept_modified: 0,
+        kept_deleted: 0,
+        unaffected: 0,
+        affected: 0,
+    };
+
+    // 同版本或更高版本的已装包都算「已是最新」，不进入差异计算
+    if let Some(current) = &installed_version {
+        if compare_versions(&manifest.version, current) != Some(1) {
+            return Ok(check);
+        }
+    }
+
+    // 只读事务：判定逻辑与 import_package 的合并分支保持一致
+    let mut tx = pool.begin().await?;
+    for item in &prepared {
+        match fetch_existing(&mut tx, &item.case_id).await? {
+            None => check.added += 1,
+            Some(case) if case.deleted_at.is_some() => check.kept_deleted += 1,
+            Some(case) if case.origin_package_id.as_deref() != Some(manifest.id.as_str()) => {
+                check.unaffected += 1
+            }
+            Some(case) if case.current_hash() != case.origin_hash.clone().unwrap_or_default() => {
+                check.kept_modified += 1
+            }
+            Some(case) => {
+                let same_hash = item.hash == case.origin_hash.clone().unwrap_or_default();
+                let up_to_date = same_hash
+                    && compare_versions(&item.version, case.origin_version.as_deref().unwrap_or("0"))
+                        .map(|order| order <= 0)
+                        .unwrap_or(false);
+                if up_to_date {
+                    check.unaffected += 1;
+                } else {
+                    check.changed += 1;
+                }
+            }
+        }
+    }
+    for removed_id in &manifest.removed_items {
+        let exists: Option<Option<String>> = sqlx::query_scalar(
+            "SELECT case_id FROM content_package_items WHERE package_id = ?1 AND item_id = ?2",
+        )
+        .bind(&manifest.id)
+        .bind(removed_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if exists.is_some() {
+            check.removed += 1;
+        }
+    }
+    tx.rollback().await?;
+
+    check.affected = check.added
+        + check.changed
+        + check.kept_modified
+        + check.kept_deleted
+        + check.removed;
+    check.status = "update-available".into();
+    Ok(check)
+}
+
+/// 用户点「安装更新」时才真正写入；行为与在线安装一致，额外给出摘要与旧版本号。
+pub async fn apply_update(
+    pool: &SqlitePool,
+    raw_url: Option<&str>,
+    allow_loopback: bool,
+    limits: &PackageLimits,
+) -> Result<UpdateApplyReport, AppError> {
+    let Some(url) = resolve_feed_url(pool, raw_url).await? else {
+        return Err(pkg_err(
+            "E_PKG_FEED_NOT_CONFIGURED",
+            "未配置在线内容包地址：本地导入仍然可用",
+        ));
+    };
+    let bytes = download_package(&url, allow_loopback, limits).await?;
+    let keys = resolve_trusted_keys(pool).await?;
+    let loaded = load_package(&bytes, limits, &keys)?;
+    let previous_version: Option<String> =
+        sqlx::query_scalar("SELECT version FROM content_packages WHERE id = ?1")
+            .bind(&loaded.manifest.id)
+            .fetch_optional(pool)
+            .await?;
+
+    let report = import_package(pool, &bytes, "online", Some(&url), &keys, limits).await?;
+    let summary = UpdateSummary::from_stats(&report.stats);
+    Ok(UpdateApplyReport {
+        report,
+        summary,
+        previous_version,
+    })
+}
+
 /* -------------------------------- 测试 --------------------------------- */
 
 /// 端到端测试用：由固定种子派生的公钥。
@@ -1530,6 +1771,19 @@ pub(crate) fn fixture_package(
     version: &str,
     items: &[(&str, &str)],
 ) -> Vec<u8> {
+    fixture_package_with(seed, package_id, version, "1.0.0", items, &[])
+}
+
+/// 可指定签名密钥、最低应用版本与移除清单的版本，用于构造更新链的各种失败分支。
+#[cfg(test)]
+pub(crate) fn fixture_package_with(
+    seed: &[u8; 32],
+    package_id: &str,
+    version: &str,
+    min_app_version: &str,
+    items: &[(&str, &str)],
+    removed: &[&str],
+) -> Vec<u8> {
     use std::io::Write;
 
     use zip::write::SimpleFileOptions;
@@ -1540,11 +1794,11 @@ pub(crate) fn fixture_package(
         id: package_id.into(),
         name: "端到端内容包".into(),
         version: version.into(),
-        min_app_version: "1.0.0".into(),
+        min_app_version: min_app_version.into(),
         created_at: "2026-11-09T00:00:00Z".into(),
         categories: Vec::new(),
         items: Vec::new(),
-        removed_items: Vec::new(),
+        removed_items: removed.iter().map(|id| (*id).to_string()).collect(),
         files: Vec::new(),
     };
     let mut payloads: Vec<(String, Vec<u8>)> = Vec::new();

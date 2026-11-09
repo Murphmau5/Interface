@@ -137,3 +137,18 @@ export function useContentPackageUninstall() {
     onSuccess: () => invalidateContentData(queryClient),
   });
 }
+
+/** 检查更新只在用户点按钮时执行，不做后台轮询。 */
+export function useContentPackageCheckUpdate() {
+  return useMutation({
+    mutationFn: (url?: string) => ipc.contentPackageCheckUpdate(url),
+  });
+}
+
+export function useContentPackageApplyUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (url?: string) => ipc.contentPackageApplyUpdate(url),
+    onSuccess: () => invalidateContentData(queryClient),
+  });
+}
