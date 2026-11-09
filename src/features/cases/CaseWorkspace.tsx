@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Layers, LayoutGrid, List, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Layers, LayoutGrid, List, RotateCcw, Search } from "lucide-react";
 
 import { PanelLayout } from "@/components/layout/PanelLayout";
 import { Button } from "@/components/ui/Button";
@@ -7,15 +7,28 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { Select } from "@/components/ui/Select";
+import { useCreateCandidate } from "@/features/candidates/api";
 import { CaseDetail } from "@/features/cases/CaseDetail";
 import { CaseList } from "@/features/cases/CaseList";
 import { CreateCaseForm } from "@/features/cases/CreateCaseForm";
-import { useCases, useCatalog, useToggleFavorite, type CaseScope } from "@/features/cases/api";
+import {
+  useCaseFacets,
+  useCaseQuery,
+  useCollections,
+  useToggleFavorite,
+} from "@/features/cases/api";
+import { useSettings } from "@/features/settings/api";
 import {
   CASE_KIND_DESCRIPTIONS,
   CASE_KIND_LABELS,
+  COMPONENT_LAYER_OPTIONS,
+  CONFIDENCE_OPTIONS,
+  PLATFORM_OPTIONS,
+  SORT_OPTIONS,
   type CaseKind,
 } from "@/lib/constants";
+import type { CaseQueryInput } from "@/lib/ipc";
 import type { NavSectionKey } from "@/lib/navigation";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -29,6 +42,13 @@ const VIEW_OPTIONS = [
   { value: "grid", label: "网格", icon: <LayoutGrid size={12} strokeWidth={1.8} /> },
   { value: "table", label: "表格", icon: <List size={12} strokeWidth={1.8} /> },
 ] as const;
+
+const SCOPE_OPTIONS = [
+  { value: "local", label: "本地" },
+  { value: "online", label: "联网" },
+] as const;
+
+const AI_KEY_SETTING = "lab.ai.apiKey";
 
 function workspaceCopy(props: CaseWorkspaceProps): {
   eyebrow: string;
@@ -46,7 +66,7 @@ function workspaceCopy(props: CaseWorkspaceProps): {
     return {
       eyebrow: "LIBRARY / 全部",
       title: "全部案例",
-      description: "跨内容域的全部案例，按更新时间倒序；左栏与这里共用同一份 SQLite 数据。",
+      description: "跨内容域的全部案例；搜索与筛选都在 SQL 里执行，计数为真实统计。",
     };
   }
   if (props.scope === "favorites") {
@@ -59,13 +79,25 @@ function workspaceCopy(props: CaseWorkspaceProps): {
   return {
     eyebrow: "LIBRARY / 最近使用",
     title: "最近使用",
-    description: "按更新时间倒序排列，不区分内容域。",
+    description: "最近 30 天内更新过的案例，按更新时间倒序。",
   };
 }
 
+function withCounts(
+  options: readonly { value: string; label: string }[],
+  counts: Record<string, number> | undefined,
+  allLabel: string,
+): { value: string; label: string }[] {
+  return [
+    { value: "all", label: allLabel },
+    ...options.map((option) => ({
+      value: option.value,
+      label: `${option.label} · ${counts?.[option.value] ?? 0}`,
+    })),
+  ];
+}
+
 export function CaseWorkspace(props: CaseWorkspaceProps) {
-  const scope: CaseScope = props.scope;
-  const kind = props.scope === "kind" ? props.kind : undefined;
   const copy = workspaceCopy(props);
   const toggleFavorite = useToggleFavorite();
   const sectionKey = props.scope === "kind" ? (props.kind as NavSectionKey) : null;
@@ -73,36 +105,87 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     sectionKey ? (state.categoryBySection[sectionKey] ?? null) : null,
   );
   const clearCategory = useUiStore((state) => state.clearCategory);
-  const catalog = useCatalog();
-  const casesQuery = useCases(scope, kind, selectedCategory);
+  const filters = useUiStore((state) => state.filters);
+  const setFilter = useUiStore((state) => state.setFilter);
+  const resetFilters = useUiStore((state) => state.resetFilters);
+  const view = useUiStore((state) => state.viewMode);
+  const setView = useUiStore((state) => state.setViewMode);
+  const activeCollectionId = useUiStore((state) => state.activeCollectionId);
+  const setActiveCollection = useUiStore((state) => state.setActiveCollection);
+  const collections = useCollections();
+  const settings = useSettings();
+  const createCandidate = useCreateCandidate();
 
-  const domain = kind ? catalog.data?.find((entry) => entry.domain === kind) : undefined;
-  const category =
-    domain?.groups
-      .flatMap((group) => group.categories)
-      .find((entry) => entry.id === selectedCategory) ?? null;
-  const categoryLabel = category?.label ?? null;
-  const domainLabel = kind ? CASE_KIND_LABELS[kind] : null;
-  const title = categoryLabel ?? copy.title;
+  const collection =
+    props.scope === "all"
+      ? (collections.data?.find((entry) => entry.id === activeCollectionId) ?? null)
+      : null;
 
-  const [search, setSearch] = useState("");
-  const [view, setView] = useState<"grid" | "table">("grid");
+  const scope: CaseQueryInput["scope"] =
+    props.scope === "kind"
+      ? "kind"
+      : props.scope === "favorites"
+        ? "favorites"
+        : props.scope === "recent"
+          ? "recent"
+          : activeCollectionId
+            ? "collection"
+            : "all";
+
+  const queryInput: CaseQueryInput = useMemo(
+    () => ({
+      scope,
+      kind:
+        props.scope === "kind"
+          ? props.kind
+          : filters.kind !== "all"
+            ? filters.kind
+            : undefined,
+      platform: filters.platform !== "all" ? filters.platform : undefined,
+      confidence: filters.confidence !== "all" ? filters.confidence : undefined,
+      layer: filters.layer !== "all" ? filters.layer : undefined,
+      categoryId: selectedCategory ?? undefined,
+      collectionId: collection?.id ?? undefined,
+      search: filters.search.trim() || undefined,
+      sort: filters.sort,
+      limit: 1000,
+    }),
+    [scope, props, filters, selectedCategory, collection?.id],
+  );
+
+  const facetInput: CaseQueryInput = useMemo(
+    () => ({
+      scope,
+      categoryId: selectedCategory ?? undefined,
+      collectionId: collection?.id ?? undefined,
+      search: filters.search.trim() || undefined,
+    }),
+    [scope, selectedCategory, collection?.id, filters.search],
+  );
+
+  const casesQuery = useCaseQuery(queryInput);
+  const facets = useCaseFacets(facetInput);
+
+  const [searchDraft, setSearchDraft] = useState(filters.search);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [urlDraft, setUrlDraft] = useState("");
+  const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
 
-  const cases = casesQuery.data ?? [];
-  const filtered = cases.filter((item) => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return true;
-    return (
-      item.title.toLowerCase().includes(needle) ||
-      item.id.toLowerCase().includes(needle) ||
-      item.summary.toLowerCase().includes(needle)
-    );
-  });
+  // 220ms 防抖后再把输入写入唯一筛选状态，查询由 SQL 执行
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (searchDraft !== filters.search) setFilter("search", searchDraft);
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [searchDraft, filters.search, setFilter]);
 
-  const selected =
-    filtered.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
+  const items = casesQuery.data?.items ?? [];
+  const total = casesQuery.data?.total ?? 0;
+
+  const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+
+  const hasAiKey = Boolean(settings.data?.[AI_KEY_SETTING]?.trim());
 
   const handleToggleFavorite = (id: string) => {
     toggleFavorite.mutate(id, {
@@ -112,8 +195,37 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   };
 
   const handleCreated = (id: string) => {
-    setSearch("");
+    setSearchDraft("");
+    setFilter("search", "");
     setSelectedId(id);
+  };
+
+  const handleUrlSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const url = urlDraft.trim();
+    if (!url) return;
+    let host = url;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      setOnlineMessage("网址格式不合法，需要以 http:// 或 https:// 开头。");
+      return;
+    }
+    createCandidate.mutate(
+      {
+        kind: props.scope === "kind" ? props.kind : "style",
+        title: `待抓取：${host}`,
+        source: "url",
+        sourceUrl: url,
+      },
+      {
+        onSuccess: () => {
+          setUrlDraft("");
+          setOnlineMessage("已登记为待审核候选；不会自动抓取或请求该网址。");
+        },
+        onError: (error) => setOnlineMessage(error.message),
+      },
+    );
   };
 
   const favoriteBusyId =
@@ -121,59 +233,223 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       ? toggleFavorite.variables
       : null;
 
+  const kindOptions = useMemo(
+    () =>
+      withCounts(
+        Object.entries(CASE_KIND_LABELS).map(([value, label]) => ({ value, label })),
+        facets.data?.kinds,
+        "全部类型",
+      ),
+    [facets.data?.kinds],
+  );
+  const platformOptions = useMemo(
+    () => withCounts(PLATFORM_OPTIONS, facets.data?.platforms, "全部平台"),
+    [facets.data?.platforms],
+  );
+  const confidenceOptions = useMemo(
+    () => withCounts(CONFIDENCE_OPTIONS, facets.data?.confidences, "全部置信度"),
+    [facets.data?.confidences],
+  );
+  const layerOptions = useMemo(
+    () => withCounts(COMPONENT_LAYER_OPTIONS, facets.data?.layers, "全部组件层"),
+    [facets.data?.layers],
+  );
+
+  const filtersActive =
+    filters.kind !== "all" ||
+    filters.platform !== "all" ||
+    filters.confidence !== "all" ||
+    filters.layer !== "all" ||
+    filters.search.trim() !== "";
+
+  const title = collection?.name ?? copy.title;
+  const eyebrow = collection ? "LIBRARY / 合集" : copy.eyebrow;
+
   const middle = (
     <div className="flex h-full min-h-0 flex-col">
       <header className="shrink-0 border-b border-line px-5 pb-4 pt-5">
-        <div className="label-eyebrow">
-          {categoryLabel && domainLabel ? `${domainLabel} / 类目` : copy.eyebrow}
-        </div>
+        <div className="label-eyebrow">{eyebrow}</div>
         <div className="mt-1.5 flex items-center gap-2">
           <h1 className="text-display font-semibold tracking-tight text-ink">{title}</h1>
-          <span className="rounded-pill border border-line px-2 py-0.5 font-mono text-2xs text-ink-faint">
-            {filtered.length}
+          <span
+            title="总数来自 SQL COUNT"
+            className="rounded-pill border border-line px-2 py-0.5 font-mono text-2xs text-ink-faint"
+          >
+            {total}
           </span>
         </div>
         <p className="mt-1 text-meta leading-normal text-ink-faint">
-          {categoryLabel
-            ? "该类目下的全部条目；计数来自本地 categories 表的真实统计。"
+          {collection
+            ? "合集是视图，不是分类；条目仍保留原本的内容域与类目。"
             : copy.description}
         </p>
 
-        {sectionKey && categoryLabel ? (
+        {sectionKey && selectedCategory ? (
           <nav aria-label="类目路径" className="mt-2 flex flex-wrap items-center gap-1.5 text-2xs">
             <button
               type="button"
               onClick={() => clearCategory(sectionKey)}
               className="rounded-xs px-1 py-0.5 text-ink-soft transition-colors duration-[var(--motion-fast)] hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
             >
-              {domainLabel}
+              {CASE_KIND_LABELS[props.scope === "kind" ? props.kind : "style"]}
             </button>
             <span aria-hidden className="text-ink-faint">
               ›
             </span>
             <span className="rounded-xs border border-accent-line bg-accent-soft px-1.5 py-0.5 text-ink">
-              {categoryLabel}
+              {sectionKey && selectedCategory ? "类目视图" : "类目"}
             </span>
             <span className="ml-1 text-ink-faint">Esc 先清类目，再按一次返回域</span>
           </nav>
+        ) : null}
+
+        {collection ? (
+          <button
+            type="button"
+            onClick={() => setActiveCollection(null)}
+            className="mt-2 inline-flex items-center gap-1 rounded-xs px-1 py-0.5 text-2xs text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+          >
+            退出合集视图
+          </button>
         ) : null}
 
         <div className="mt-3.5 flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <Input
               aria-label="搜索案例"
-              value={search}
-              placeholder="按标题 / ID 过滤"
-              onChange={(event) => setSearch(event.target.value)}
+              value={searchDraft}
+              placeholder="搜标题 / 摘要 / 拼音，2 字即可命中"
+              onChange={(event) => setSearchDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.ctrlKey && event.key === "Enter") {
+                  event.preventDefault();
+                  setOnlineMessage(null);
+                  setFilter("scope", "online");
+                }
+              }}
               trailing={<Search size={13} strokeWidth={1.8} aria-hidden />}
             />
           </div>
+          <SegmentedControl
+            label="搜索作用域"
+            options={SCOPE_OPTIONS}
+            value={filters.scope}
+            onChange={(value) => {
+              setOnlineMessage(null);
+              setFilter("scope", value);
+            }}
+          />
           <SegmentedControl
             label="列表视图"
             options={VIEW_OPTIONS}
             value={view}
             onChange={setView}
           />
+        </div>
+
+        {filters.scope === "online" ? (
+          <div className="mt-2 rounded-sm border border-line bg-sunken px-3 py-2.5 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-ink">联网作用域</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setOnlineMessage(null);
+                  setFilter("scope", "local");
+                }}
+                className="text-2xs text-ink-faint underline-offset-2 hover:text-ink hover:underline"
+              >
+                回到本地
+              </button>
+            </div>
+            {hasAiKey ? (
+              <p className="mt-1 leading-normal text-ink-faint">
+                已检测到 API Key，但联网检索 Provider 尚未接入；本版本不会自动发起任何请求。
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 leading-normal text-ink-faint">
+                  未配置 Key：联网入口降级为「粘贴网址登记」，只写入待审核候选，不自动抓取。
+                </p>
+                <form onSubmit={handleUrlSubmit} className="mt-2 flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      aria-label="粘贴网址"
+                      value={urlDraft}
+                      placeholder="https://example.com/article"
+                      onChange={(event) => setUrlDraft(event.target.value)}
+                    />
+                  </div>
+                  <Button size="sm" type="submit" disabled={createCandidate.isPending}>
+                    登记网址
+                  </Button>
+                </form>
+                {onlineMessage ? (
+                  <p className="mt-1.5 leading-normal text-ink-soft">{onlineMessage}</p>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
+
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          {props.scope !== "kind" ? (
+            <Select
+              aria-label="按类型筛选"
+              options={kindOptions}
+              value={filters.kind}
+              onChange={(event) => setFilter("kind", event.target.value)}
+            />
+          ) : (
+            <Select
+              aria-label="按置信度筛选"
+              options={confidenceOptions}
+              value={filters.confidence}
+              onChange={(event) => setFilter("confidence", event.target.value)}
+            />
+          )}
+          <Select
+            aria-label="按平台筛选"
+            options={platformOptions}
+            value={filters.platform}
+            onChange={(event) => setFilter("platform", event.target.value)}
+          />
+          {props.scope !== "kind" ? (
+            <Select
+              aria-label="按置信度筛选"
+              options={confidenceOptions}
+              value={filters.confidence}
+              onChange={(event) => setFilter("confidence", event.target.value)}
+            />
+          ) : null}
+          <Select
+            aria-label="按组件层筛选"
+            options={layerOptions}
+            value={filters.layer}
+            onChange={(event) => setFilter("layer", event.target.value)}
+          />
+          <Select
+            aria-label="排序"
+            options={[...SORT_OPTIONS]}
+            value={filters.sort}
+            onChange={(event) =>
+              setFilter("sort", event.target.value as typeof filters.sort)
+            }
+          />
+          {filtersActive ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="justify-start"
+              onClick={() => {
+                resetFilters();
+                setSearchDraft("");
+              }}
+            >
+              <RotateCcw size={12} strokeWidth={1.8} aria-hidden />
+              重置筛选
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -182,8 +458,12 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         tabIndex={-1}
         className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 focus-visible:outline-none"
       >
-        {scope === "kind" && kind ? (
-          <CreateCaseForm kind={kind} categoryId={selectedCategory} onCreated={handleCreated} />
+        {props.scope === "kind" ? (
+          <CreateCaseForm
+            kind={props.kind}
+            categoryId={selectedCategory}
+            onCreated={handleCreated}
+          />
         ) : null}
 
         {listError ? (
@@ -216,32 +496,39 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           />
         ) : null}
 
-        {!casesQuery.isPending && !casesQuery.isError && filtered.length === 0 ? (
+        {!casesQuery.isPending && !casesQuery.isError && total === 0 ? (
           <EmptyState
             compact
-            title={search.trim() ? "没有匹配的案例" : "这里还没有案例"}
+            title={filters.search.trim() ? "没有匹配的案例" : "这里还没有案例"}
             description={
-              search.trim()
-                ? "清空搜索词，或换一个关键词。"
-                : categoryLabel
+              filters.search.trim()
+                ? "换一个关键词，或试试拼音全拼 / 首字母。"
+                : selectedCategory
                   ? "该类目还没有案例，用上方表单新建一条即可自动归类。"
-                  : scope === "kind"
+                  : props.scope === "kind"
                     ? "用上方表单写入第一条案例，数据会落到本地 SQLite。"
                     : "先去内容域创建案例并收藏，再回到这里查看。"
             }
             action={
-              search.trim() ? (
-                <Button size="sm" variant="ghost" onClick={() => setSearch("")}>
-                  清空搜索
+              filtersActive ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    resetFilters();
+                    setSearchDraft("");
+                  }}
+                >
+                  清空筛选
                 </Button>
               ) : undefined
             }
           />
         ) : null}
 
-        {!casesQuery.isPending && !casesQuery.isError && filtered.length > 0 ? (
+        {!casesQuery.isPending && !casesQuery.isError && total > 0 ? (
           <CaseList
-            cases={filtered}
+            cases={items}
             selectedId={selected?.id ?? null}
             view={view}
             favoriteBusyId={favoriteBusyId}
@@ -250,9 +537,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           />
         ) : null}
 
-        {!casesQuery.isPending && !casesQuery.isError && cases.length > 0 ? (
+        {!casesQuery.isPending && !casesQuery.isError && total > 0 ? (
           <p className="px-1 pt-1 font-mono text-2xs text-ink-faint">
-            本地 SQLite · {cases.length} 条 · 重启后保留
+            SQL · 命中 {total} 条 · 当前渲染 {items.length} 条
           </p>
         ) : null}
       </div>

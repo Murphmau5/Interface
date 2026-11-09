@@ -1,6 +1,6 @@
 [package]
 name = "jiexu-interface"
-version = "1.0.1"
+version = "1.0.2"
 description = "界序 INTERFACE — 双主题 UI 动效仪器台"
 authors = ["界序 INTERFACE contributors"]
 edition = "2021"
@@ -24,3 +24,7 @@ sqlx = { version = "0.8", default-features = false, features = [
 ] }
 uuid = { version = "1", features = ["v4"] }
 thiserror = "2"
+pinyin = { version = "0.11.0", default-features = false, features = ["plain"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

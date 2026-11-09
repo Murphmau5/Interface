@@ -37,6 +37,66 @@ export const CONFIDENCE_OPTIONS = [
   { value: "user_defined", label: "用户定义" },
 ] as const;
 
+export const PLATFORM_LABELS: Record<string, string> = {
+  web: "Web",
+  ios: "iOS",
+  android: "Android",
+  desktop: "桌面",
+};
+
+export const PLATFORM_OPTIONS = [
+  { value: "web", label: "Web" },
+  { value: "ios", label: "iOS" },
+  { value: "android", label: "Android" },
+  { value: "desktop", label: "桌面" },
+] as const;
+
+export const COMPONENT_LAYER_LABELS: Record<string, string> = {
+  atom: "原子控件",
+  pattern: "复合模式",
+  template: "页面模板",
+};
+
+export const COMPONENT_LAYER_OPTIONS = [
+  { value: "atom", label: "原子控件" },
+  { value: "pattern", label: "复合模式" },
+  { value: "template", label: "页面模板" },
+] as const;
+
+export const SORT_OPTIONS = [
+  { value: "updated", label: "最近更新" },
+  { value: "created", label: "最近创建" },
+  { value: "title", label: "标题 A→Z" },
+] as const;
+
+export type SortKey = (typeof SORT_OPTIONS)[number]["value"];
+export type SearchScope = "local" | "online";
+export type ListView = "grid" | "table";
+
+/** 最近使用视图的时间窗（后端 SQL 同步使用 30 天） */
+export const RECENT_WINDOW_DAYS = 30;
+
+export interface CaseFilters {
+  kind: string;
+  platform: string;
+  confidence: string;
+  layer: string;
+  sort: SortKey;
+  search: string;
+  scope: SearchScope;
+}
+
+export const DEFAULT_FILTERS: CaseFilters = {
+  kind: "all",
+  platform: "all",
+  confidence: "all",
+  layer: "all",
+  sort: "updated",
+  search: "",
+  scope: "local",
+};
+
+
 export const SETTINGS_KEYS = {
   themeMode: "ui.themeMode",
   reduceMotion: "ui.reduceMotion",

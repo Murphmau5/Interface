@@ -93,13 +93,12 @@ export const NAV_SECTIONS: Record<NavSectionKey, NavSection> = {
     key: "discovery",
     label: "AI 发现",
     route: "/discovery",
-    unavailable: true,
     groups: [
       {
         label: "检索与采集",
         categories: [
           { id: "discovery.search", label: "自然语言搜索" },
-          { id: "discovery.crawl", label: "网页抓取" },
+          { id: "discovery.crawl", label: "网址登记" },
           { id: "discovery.identify", label: "案例识别" },
         ],
       },
@@ -111,7 +110,7 @@ export const NAV_SECTIONS: Record<NavSectionKey, NavSection> = {
         ],
       },
     ],
-    footnote: "采集与审核流程将在 Phase 5 接入；当前只做导航占位。",
+    footnote: "候选必须显式通过才写入案例库；没有免审开关。",
   },
   settings: {
     key: "settings",

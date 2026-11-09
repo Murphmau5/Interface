@@ -1,6 +1,11 @@
 import { create } from "zustand";
 
-import { DEFAULT_LAYOUT } from "@/lib/constants";
+import {
+  DEFAULT_FILTERS,
+  DEFAULT_LAYOUT,
+  type CaseFilters,
+  type ListView,
+} from "@/lib/constants";
 import type { NavSectionKey } from "@/lib/navigation";
 import {
   applyTheme,
@@ -20,12 +25,19 @@ interface UiState {
   navOpen: boolean;
   activeSection: NavSectionKey | null;
   categoryBySection: Partial<Record<NavSectionKey, string>>;
+  filters: CaseFilters;
+  viewMode: ListView;
+  activeCollectionId: string | null;
   setThemeMode: (mode: ThemeMode) => void;
   syncResolvedTheme: (resolved: ResolvedTheme) => void;
   setReduceMotion: (value: boolean) => void;
   setLeftWidth: (width: number) => void;
   setMiddleWidth: (width: number) => void;
   resetLayout: () => void;
+  setFilter: <K extends keyof CaseFilters>(key: K, value: CaseFilters[K]) => void;
+  resetFilters: () => void;
+  setViewMode: (view: ListView) => void;
+  setActiveCollection: (id: string | null) => void;
   openNavSection: (section: NavSectionKey) => void;
   closeNavSection: () => void;
   selectCategory: (section: NavSectionKey, categoryId: string) => void;
@@ -45,6 +57,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   navOpen: false,
   activeSection: null,
   categoryBySection: {},
+  filters: DEFAULT_FILTERS,
+  viewMode: "grid",
+  activeCollectionId: null,
 
   setThemeMode: (mode) => {
     const resolved = resolveTheme(mode);
@@ -67,6 +82,12 @@ export const useUiStore = create<UiState>((set, get) => ({
   setLeftWidth: (width) => set({ leftWidth: width }),
   setMiddleWidth: (width) => set({ middleWidth: width }),
   resetLayout: () => set({ leftWidth: DEFAULT_LAYOUT.leftWidth, middleWidth: DEFAULT_LAYOUT.middleWidth }),
+
+  setFilter: (key, value) =>
+    set((state) => ({ filters: { ...state.filters, [key]: value } })),
+  resetFilters: () => set({ filters: DEFAULT_FILTERS }),
+  setViewMode: (view) => set({ viewMode: view }),
+  setActiveCollection: (id) => set({ activeCollectionId: id }),
 
   openNavSection: (section) => set({ navOpen: true, activeSection: section }),
   closeNavSection: () => set({ navOpen: false }),

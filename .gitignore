@@ -21,9 +21,7 @@ backups/
 logs/
 
 # 自动生成/临时
-.agent/temp/
-.agent/logs/
-.agent/reports/
+.agent/
 .screenshots/
 .trae-html-share-packages/
 .tmp/

@@ -56,3 +56,49 @@ export function buildCaseMarkdown(input: MarkdownInput): string {
 
   return lines.join("\n");
 }
+
+export interface CaseJsonInput {
+  id: string;
+  title: string;
+  kind: string;
+  kindLabel: string;
+  categoryId: string | null;
+  categoryLabel: string | null;
+  confidence: string;
+  confidenceLabel: string;
+  platform: string;
+  tags: string[];
+  updatedAt: string;
+  spec: PreviewSpec;
+}
+
+/** 与 Markdown 同一批数据的结构化导出，便于二次处理 */
+export function buildCaseJson(input: CaseJsonInput): string {
+  return JSON.stringify(
+    {
+      schema: "interface.case/v2",
+      exportedAt: new Date().toISOString(),
+      id: input.id,
+      title: input.title,
+      kind: input.kind,
+      kindLabel: input.kindLabel,
+      categoryId: input.categoryId,
+      categoryLabel: input.categoryLabel,
+      confidence: input.confidence,
+      confidenceLabel: input.confidenceLabel,
+      platform: input.platform,
+      tags: input.tags,
+      updatedAt: input.updatedAt,
+      preview: input.spec,
+      previewLabel: `${PREVIEW_KIND_LABELS[input.spec.kind]} / ${previewTitle(input.spec)}`,
+      params: previewParamRows(input.spec).map((row) => ({
+        label: row.label,
+        value: row.value,
+      })),
+      prompt: buildPreviewPrompt(input.spec),
+      snippet: buildPreviewSnippet(input.spec),
+    },
+    null,
+    2,
+  );
+}

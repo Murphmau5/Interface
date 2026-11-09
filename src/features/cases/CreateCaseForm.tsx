@@ -8,6 +8,7 @@ import { useCatalog, useCreateCase } from "@/features/cases/api";
 import {
   CASE_KIND_LABELS,
   CONFIDENCE_OPTIONS,
+  PLATFORM_OPTIONS,
   type CaseKind,
 } from "@/lib/constants";
 import { defaultPreviewSpec, serializePreview } from "@/lib/preview";
@@ -22,6 +23,7 @@ interface CreateCaseFormProps {
 export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormProps) {
   const [title, setTitle] = useState("");
   const [confidence, setConfidence] = useState("unknown");
+  const [platform, setPlatform] = useState("web");
   const [category, setCategory] = useState(categoryId ?? "");
   const [lastCategoryId, setLastCategoryId] = useState(categoryId ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormPr
         title: trimmed,
         kind,
         confidence,
+        platform,
         categoryId: category || undefined,
         payloadJson: serializePreview("{}", defaultPreviewSpec(kind)),
       },
@@ -117,6 +120,19 @@ export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormPr
             onChange={(event) => setConfidence(event.target.value)}
           />
         </div>
+      </div>
+
+      <div className="mt-2">
+        <Select
+          aria-label="平台"
+          label="平台"
+          options={PLATFORM_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
+          value={platform}
+          onChange={(event) => setPlatform(event.target.value)}
+        />
       </div>
 
       <div className="mt-2 flex justify-end">

@@ -1,6 +1,7 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
 import { AppShell } from "@/app/AppShell";
+import { CandidateView } from "@/features/candidates/CandidateView";
 import { CaseWorkspace } from "@/features/cases/CaseWorkspace";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { ToolView } from "@/features/tools/ToolView";
@@ -20,7 +21,7 @@ export const router = createHashRouter([
       { path: "favorites", element: <CaseWorkspace scope="favorites" /> },
       { path: "recent", element: <CaseWorkspace scope="recent" /> },
       { path: "workspace", element: <ToolView section="workspace" /> },
-      { path: "discovery", element: <ToolView section="discovery" /> },
+      { path: "discovery", element: <CandidateView /> },
       { path: "settings", element: <SettingsView /> },
       { path: "*", element: <Navigate to="/library" replace /> },
     ],

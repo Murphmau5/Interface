@@ -29,6 +29,7 @@ impl Db {
 pub async fn connect(data_dir: &Path) -> Result<SqlitePool, sqlx::Error> {
     std::fs::create_dir_all(data_dir).map_err(sqlx::Error::Io)?;
     std::fs::create_dir_all(data_dir.join(ASSETS_DIR_NAME)).map_err(sqlx::Error::Io)?;
+    std::fs::create_dir_all(data_dir.join("objects")).map_err(sqlx::Error::Io)?;
 
     let options = SqliteConnectOptions::new()
         .filename(data_dir.join(DB_FILE_NAME))

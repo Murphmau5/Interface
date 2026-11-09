@@ -3,7 +3,7 @@ import { Star } from "lucide-react";
 
 import { useCardPreview } from "@/features/preview/useCardPreview";
 import { getPosterUri } from "@/features/preview/poster";
-import { CASE_KIND_LABELS, CONFIDENCE_LABELS, type CaseKind } from "@/lib/constants";
+import { CASE_KIND_LABELS, CONFIDENCE_LABELS, PLATFORM_LABELS, type CaseKind } from "@/lib/constants";
 import type { CaseSummary } from "@/lib/ipc";
 import { parsePreviewSpec } from "@/lib/preview";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -183,6 +183,9 @@ function CaseCard({
         <span className="rounded-xs border border-line px-1.5 py-0.5 text-ink-soft">
           {kindLabel(item.kind)}
         </span>
+        <span className="rounded-xs border border-line px-1.5 py-0.5 text-ink-soft">
+          {PLATFORM_LABELS[item.platform] ?? item.platform}
+        </span>
         <span aria-hidden className="h-0.5 w-0.5 rounded-pill bg-ink-faint" />
         <span className="truncate">{CONFIDENCE_LABELS[item.confidence] ?? item.confidence}</span>
         <span className="ml-auto shrink-0 font-mono">{formatDateTime(item.updatedAt)}</span>
@@ -257,6 +260,9 @@ function TableList({
               类型
             </th>
             <th className="px-2 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
+              平台
+            </th>
+            <th className="px-2 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
               置信度
             </th>
             <th className="px-2 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
@@ -268,7 +274,7 @@ function TableList({
         <tbody>
           {start > 0 ? (
             <tr aria-hidden style={{ height: start * TABLE_ROW_HEIGHT }}>
-              <td colSpan={5} className="p-0" />
+              <td colSpan={6} className="p-0" />
             </tr>
           ) : null}
 
@@ -293,6 +299,9 @@ function TableList({
                 </td>
                 <td className="px-2 py-2 text-meta text-ink-soft">{kindLabel(item.kind)}</td>
                 <td className="px-2 py-2 text-meta text-ink-soft">
+                  {PLATFORM_LABELS[item.platform] ?? item.platform}
+                </td>
+                <td className="px-2 py-2 text-meta text-ink-soft">
                   {CONFIDENCE_LABELS[item.confidence] ?? item.confidence}
                 </td>
                 <td className="whitespace-nowrap px-2 py-2 font-mono text-2xs text-ink-faint">
@@ -311,7 +320,7 @@ function TableList({
 
           {end < cases.length ? (
             <tr aria-hidden style={{ height: (cases.length - end) * TABLE_ROW_HEIGHT }}>
-              <td colSpan={5} className="p-0" />
+              <td colSpan={6} className="p-0" />
             </tr>
           ) : null}
         </tbody>

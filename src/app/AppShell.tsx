@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
@@ -6,6 +6,7 @@ import {
   Blocks,
   Bot,
   ChevronLeft,
+  FolderPlus,
   History,
   Palette,
   Radar,
@@ -16,9 +17,11 @@ import {
 } from "lucide-react";
 
 import { Resizer } from "@/components/ui/Resizer";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { ThemeController } from "@/app/ThemeController";
 import { useAppInfo, useSettings, useSetSetting } from "@/features/settings/api";
-import { useCaseCounts, useCatalog } from "@/features/cases/api";
+import { useCaseCounts, useCatalog, useCollections, useCreateCollection, useViewCounts } from "@/features/cases/api";
 import { PANEL_LIMITS, SETTINGS_KEYS } from "@/lib/constants";
 import {
   CONTENT_SECTION_KEYS,
@@ -107,6 +110,14 @@ export function AppShell() {
   const setSetting = useSetSetting();
   const counts = useCaseCounts();
   const catalog = useCatalog();
+  const viewCounts = useViewCounts();
+  const collections = useCollections();
+  const createCollection = useCreateCollection();
+  const activeCollectionId = useUiStore((state) => state.activeCollectionId);
+  const setActiveCollection = useUiStore((state) => state.setActiveCollection);
+  const [addingCollection, setAddingCollection] = useState(false);
+  const [collectionName, setCollectionName] = useState("");
+  const [collectionError, setCollectionError] = useState<string | null>(null);
   const appInfo = useAppInfo();
   const hydrated = useRef(false);
   const rootNavRef = useRef<HTMLDivElement | null>(null);
@@ -199,6 +210,30 @@ export function AppShell() {
     return kindCounts?.[kind] ?? 0;
   };
 
+  const openCollection = (id: string) => {
+    setActiveCollection(id);
+    closeNavSection();
+    if (location.pathname !== "/library") navigate("/library");
+    window.requestAnimationFrame(() => {
+      document.getElementById("content-list")?.focus();
+    });
+  };
+
+  const submitCollection = (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = collectionName.trim();
+    if (!name) return;
+    createCollection.mutate(name, {
+      onSuccess: (row) => {
+        setCollectionName("");
+        setAddingCollection(false);
+        setCollectionError(null);
+        openCollection(row.id);
+      },
+      onError: (error) => setCollectionError(error.message),
+    });
+  };
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-bg text-ink">
       <ThemeController />
@@ -249,45 +284,135 @@ export function AppShell() {
               </div>
             </div>
 
-            <div className="border-t border-line px-2 py-2">
-              {[
-                { to: "/favorites", label: "收藏", icon: Star },
-                { to: "/recent", label: "最近使用", icon: History },
-              ].map(({ to, label, icon: Icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end
-                  onClick={closeNavSection}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex h-7 items-center gap-2.5 rounded-sm px-2.5 text-meta transition-colors duration-[var(--motion-fast)]",
-                      isActive
-                        ? "bg-accent-soft text-ink"
-                        : "text-ink-soft hover:bg-surface hover:text-ink",
-                    )
-                  }
+            <div className="border-t border-line px-2 pb-2 pt-1.5">
+              <div className="flex items-center justify-between px-2.5 pb-1">
+                <span className="label-eyebrow">合集</span>
+                <button
+                  type="button"
+                  aria-label={addingCollection ? "收起新建合集" : "新建合集"}
+                  aria-expanded={addingCollection}
+                  onClick={() => {
+                    setAddingCollection((value) => !value);
+                    setCollectionError(null);
+                  }}
+                  className="flex h-5 w-5 items-center justify-center rounded-xs text-ink-faint transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
                 >
-                  {({ isActive }) => (
-                    <>
-                      <Icon
-                        aria-hidden
-                        size={13}
-                        strokeWidth={1.7}
-                        className={isActive ? "text-accent" : "text-ink-faint"}
-                      />
-                      <span className="truncate">{label}</span>
-                    </>
-                  )}
-                </NavLink>
-              ))}
+                  <FolderPlus size={12} strokeWidth={1.8} aria-hidden />
+                </button>
+              </div>
+
+              {addingCollection ? (
+                <form onSubmit={submitCollection} className="flex items-center gap-1.5 px-1.5 pb-1.5">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      aria-label="合集名称"
+                      value={collectionName}
+                      maxLength={24}
+                      placeholder="合集名称"
+                      onChange={(event) => {
+                        setCollectionName(event.target.value);
+                        if (collectionError) setCollectionError(null);
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={createCollection.isPending || !collectionName.trim()}
+                  >
+                    建
+                  </Button>
+                </form>
+              ) : null}
+
+              {collectionError ? (
+                <p role="alert" className="px-2.5 pb-1 text-2xs leading-normal text-danger">
+                  {collectionError}
+                </p>
+              ) : null}
+
+              <div className="max-h-24 overflow-y-auto">
+                {collections.data?.length ? (
+                  collections.data.map((entry) => {
+                    const selected = entry.id === activeCollectionId;
+                    return (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => openCollection(entry.id)}
+                        className={cn(
+                          "flex h-7 w-full items-center gap-2 rounded-sm px-2.5 text-left text-meta transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line",
+                          selected
+                            ? "bg-accent-soft text-ink"
+                            : "text-ink-soft hover:bg-surface hover:text-ink",
+                        )}
+                      >
+                        <span className="truncate">{entry.name}</span>
+                        <span className="ml-auto font-mono text-2xs text-ink-faint">
+                          {entry.count}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="px-2.5 py-1 text-2xs text-ink-faint">还没有合集</p>
+                )}
+              </div>
+
+              <div className="mt-1.5 border-t border-line pt-1.5">
+                {[
+                  {
+                    to: "/favorites",
+                    label: "收藏",
+                    icon: Star,
+                    count: viewCounts.data?.favorites ?? null,
+                  },
+                  {
+                    to: "/recent",
+                    label: "最近使用",
+                    icon: History,
+                    count: viewCounts.data?.recent ?? null,
+                  },
+                ].map(({ to, label, icon: Icon, count }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end
+                    onClick={closeNavSection}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex h-7 items-center gap-2.5 rounded-sm px-2.5 text-meta transition-colors duration-[var(--motion-fast)]",
+                        isActive
+                          ? "bg-accent-soft text-ink"
+                          : "text-ink-soft hover:bg-surface hover:text-ink",
+                      )
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon
+                          aria-hidden
+                          size={13}
+                          strokeWidth={1.7}
+                          className={isActive ? "text-accent" : "text-ink-faint"}
+                        />
+                        <span className="truncate">{label}</span>
+                        {count !== null ? (
+                          <span className="ml-auto font-mono text-2xs text-ink-faint">{count}</span>
+                        ) : null}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-center gap-2 border-t border-line px-4 py-2.5">
               <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-accent" />
               <span className="text-2xs text-ink-faint">SQLite · 本地模式</span>
               <span className="ml-auto font-mono text-2xs text-ink-faint">
-                v{appInfo.data?.appVersion ?? "1.0.1"}
+                v{appInfo.data?.appVersion ?? "1.0.2"}
               </span>
             </div>
           </div>

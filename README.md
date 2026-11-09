@@ -1,8 +1,8 @@
 # 界序 INTERFACE
 
-**v1.0.1 · 预览体系与真实类目版** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版交付可调预览渲染器、SQLite 真实类目与案例闭环导出。
+**v1.0.2 · 中文搜索与素材审核版** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版交付本地中文搜索、标签与合集、素材内容寻址、候选强制审核与双格式导出。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.1) → `INTERFACE_1.0.1_x64-setup.exe`（5.70 MB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.2) → `INTERFACE_1.0.2_x64-setup.exe`（5.96 MB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
@@ -31,14 +31,14 @@
 
 | 项 | 状态 |
 |---|---|
-| 版本 | **v1.0.1（预览体系与真实类目版）** |
-| 阶段 | Phase 2 完成：预览渲染器、类目落库、案例闭环与导出 |
+| 版本 | **v1.0.2（中文搜索与素材审核版）** |
+| 阶段 | Phase 2 收口：中文搜索、标签/合集、素材内容寻址、候选审核与导出 |
 | 安装包 | **已发布**（NSIS，Windows x64，未签名），见 GitHub Releases |
 | 文档 | 治理七件套 + A–J 十份启动文档 + 架构自检，已就绪 |
 | 代码 | 工程脚手架已通过安装 / 启动 / 卸载实测；功能项按验收逐条转 ✅ |
-| 发布渠道 | GitHub Releases `v1.0.1` |
+| 发布渠道 | GitHub Releases `v1.0.2` |
 
-> 本版重点：预览按类型拆成五个渲染器并可调参；左栏类目改为 SQLite 真实统计；「新建 → 调参 → 实时预览 → 自动存库 → 导出 Markdown」闭环可用；窗口默认打开在最小可用尺寸。AI 分析与自动发现仍在后续版本接入。
+> 本版重点：中文搜索默认只查本地，1 万条实测 P95 15.5ms（未启用 FTS5）；标签与合集落库；素材按 sha256 内容寻址；候选必须人工审核入库；导出一次同时产出 Markdown 与 JSON。AI 分析与自动发现仍在后续版本接入。
 
 ## 功能清单
 
@@ -46,11 +46,11 @@
 
 ### 知识与浏览
 
-- 🧭 案例库：单表 + 类型化 payload，支持风格 / 主题 / 动效 / 反馈 / 组件五类
+- ✅ 案例库：单表 + 类型化 payload，支持风格 / 主题 / 动效 / 反馈 / 组件五类
 - 🧭 左栏导航栈：按域深入，二级面板推入，栈深 ≤ 2
 - 🧭 底部类型条带：按类型横切，与左栏共用同一筛选状态
-- 🧭 网格视图 + 表格清单视图
-- 🧭 收藏、最近使用、标签、集合
+- ✅ 网格视图 + 表格清单视图，支持排序与四维筛选（类型 / 平台 / 置信度 / 组件层）
+- ✅ 收藏、最近使用、标签、合集（收藏与最近作为视图位于左栏底部）
 - 🧭 置信度标记与证据链接
 
 ### 预览
@@ -62,9 +62,9 @@
 
 ### 搜索
 
-- 🧭 中文优先三层搜索：trigram 子串 + 分词索引 + 拼音全拼/首字母
-- 🧭 双作用域：默认本地；`Ctrl+Enter` 显式联网；禁止自动联网
-- 🧭 网络候选独立区域「网络候选 / 未审核」，审核后才进正式库
+- ✅ 中文搜索：`LIKE` + 拼音物化列（全拼 / 首字母），1 万条实测 P95 15.5ms，未启用 FTS5
+- ✅ 双作用域：默认本地；`Ctrl+Enter` 显式联网；禁止自动联网，未配置 Key 时降级为「粘贴网址登记候选」
+- ✅ 候选池「网络候选 / 未审核」，必须显式通过才进正式库，没有免审开关
 
 ### AI
 
@@ -93,19 +93,19 @@
 | 状态 | Zustand（UI 态）+ TanStack Query（数据） |
 | 后端 | Rust + Tokio + Serde |
 | 数据库 | SQLite + rusqlite（bundled）+ 自写迁移器 |
-| 搜索 | FTS5 `trigram` + 分词索引 + 拼音索引 |
+| 搜索 | `LIKE` + 拼音物化列（未启用 FTS5；1 万条 P95 15.5ms） |
 | 校验 | Rust 侧硬门禁（serde + schemars）+ Zod 前端第二道 |
 | 图标 | Lucide（ISC） |
 | 动效 | 外壳：CSS + Motion；预览：CSS / WAAPI |
 
 ## 安装方式（Windows）
 
-1. 从 [GitHub Releases v1.0.1](https://github.com/Murphmau5/Interface/releases/tag/v1.0.1) 下载 `INTERFACE_1.0.1_x64-setup.exe`（5,976,498 字节 / 5.70 MB）。GitHub 会将附件名 ASCII 化，本地构建产物的原名是 `界序 INTERFACE_1.0.1_x64-setup.exe`。
+1. 从 [GitHub Releases v1.0.2](https://github.com/Murphmau5/Interface/releases/tag/v1.0.2) 下载 `INTERFACE_1.0.2_x64-setup.exe`（6,244,345 字节 / 5.96 MB）。本地构建产物的原名是 `界序 INTERFACE_1.0.2_x64-setup.exe`，上传时附件名改为 ASCII 名，内容一致。
 2. 核对 SHA-256：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.1_x64-setup.exe"
-# 4F954F124B676A69DC44F2AC42F1C05E50036E3836019CFF19AD221442CE7093
+Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.2_x64-setup.exe"
+# 43361A571A04833639C584AD697BF5876926B9FDFEAB595792E2D6061FABB0AA
 ```
 
 3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。
