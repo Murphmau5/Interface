@@ -8,6 +8,8 @@ dist-ssr/
 build/
 target/
 src-tauri/target/
+# 内置内容包副本由 content/v1/build.mjs 生成
+src-tauri/resources/content/
 
 # 本地运行数据（绝不提交）
 *.db

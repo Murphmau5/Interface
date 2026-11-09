@@ -126,6 +126,24 @@ function ErrorScene() {
   );
 }
 
+function StatesScene() {
+  return (
+    <div className="pv-states">
+      {[
+        { label: "默认", hint: "静止" },
+        { label: "悬停", hint: "表面提亮" },
+        { label: "按下", hint: "轻微收缩" },
+        { label: "禁用", hint: "不可操作" },
+      ].map((state, index) => (
+        <div key={state.label} className="pv-state" data-pv-state data-state={index}>
+          <span className="pv-state-chip">{state.label}</span>
+          <span className="pv-state-hint">{state.hint}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FeedbackRenderer({ spec, playing, loop, revision }: RendererProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const feedback = spec as FeedbackSpec;
@@ -377,6 +395,39 @@ export function FeedbackRenderer({ spec, playing, loop, revision }: RendererProp
           }
           return plans;
         }
+        case "states": {
+          const chips = Array.from(root.querySelectorAll<HTMLElement>("[data-pv-state]"));
+          return chips.map((chip, index) => ({
+            element: chip,
+            keyframes: [
+              {
+                opacity: index === 3 ? 0.45 : 0.7,
+                transform: "translate3d(0, 0, 0) scale(1)",
+                offset: 0,
+              },
+              {
+                opacity: index === 3 ? 0.45 : 1,
+                transform:
+                  index === 1
+                    ? "translate3d(0, -2px, 0) scale(1)"
+                    : index === 2
+                      ? "translate3d(0, 0, 0) scale(0.98)"
+                      : "translate3d(0, 0, 0) scale(1)",
+                offset: 0.5,
+              },
+              {
+                opacity: index === 3 ? 0.45 : 1,
+                transform: "translate3d(0, 0, 0) scale(1)",
+                offset: 1,
+              },
+            ],
+            options: {
+              duration: Math.max(320, total),
+              easing: feedback.easing,
+              delay: index * Math.max(60, feedback.triggerMs),
+            },
+          }));
+        }
       }
     },
     [feedback, total],
@@ -393,6 +444,7 @@ export function FeedbackRenderer({ spec, playing, loop, revision }: RendererProp
       {feedback.scene === "loading" ? <LoadingScene /> : null}
       {feedback.scene === "empty" ? <EmptyScene /> : null}
       {feedback.scene === "error" ? <ErrorScene /> : null}
+      {feedback.scene === "states" ? <StatesScene /> : null}
       {feedback.scene === "toast" ? (
         <div className="pv-feedback-caption">
           {feedback.triggerMs} / {feedback.holdMs} / {feedback.decayMs} ms · {FEEDBACK_TONE_LABELS[feedback.tone]}

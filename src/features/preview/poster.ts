@@ -94,6 +94,22 @@ function motionBody(p: Palette, scene: Extract<PreviewSpec, { kind: "motion" }>[
         <circle cx="142" cy="58" r="5" fill="${p.accent}" opacity="0.4" />
         <rect x="62" y="80" width="116" height="6" rx="3" fill="${p.surface}" />
         <rect x="62" y="80" width="64" height="6" rx="3" fill="${p.accent}" opacity="0.8" />`;
+    case "easing":
+      return `
+        <rect x="34" y="46" width="172" height="8" rx="4" fill="${p.surface}" stroke="${p.border}" />
+        <circle cx="48" cy="50" r="6" fill="${p.faint}" />
+        <path d="M54 38h108" stroke="${p.faint}" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.6" />
+        <rect x="34" y="84" width="172" height="8" rx="4" fill="${p.surface}" stroke="${p.border}" />
+        <circle cx="170" cy="88" r="6" fill="${p.accent}" />
+        <path d="M54 76h120" stroke="${p.accent}" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.7" />`;
+    case "reduced":
+      return `
+        <rect x="40" y="32" width="160" height="14" rx="4" fill="${p.raised}" stroke="${p.border}" />
+        <rect x="40" y="54" width="160" height="14" rx="4" fill="${p.raised}" stroke="${p.border}" />
+        <g opacity="0.35">
+          <rect x="40" y="84" width="160" height="14" rx="4" fill="${p.raised}" stroke="${p.border}" />
+          <rect x="40" y="106" width="160" height="14" rx="4" fill="${p.raised}" stroke="${p.border}" />
+        </g>`;
     default: {
       const exhaustive: never = scene;
       return exhaustive;
@@ -159,6 +175,12 @@ function feedbackBody(
         <rect x="72" y="52" width="92" height="4" rx="2" fill="${p.text}" opacity="0.65" />
         <rect x="82" y="80" width="60" height="20" rx="5" fill="${p.surface}" stroke="${p.border}" />
         <rect x="97" y="88" width="30" height="4" rx="2" fill="${p.accent}" opacity="0.8" />`;
+    case "states":
+      return `
+        <rect x="46" y="34" width="62" height="26" rx="7" fill="${p.surface}" stroke="${p.border}" />
+        <rect x="132" y="34" width="62" height="26" rx="7" fill="${p.accentSoft}" stroke="${p.accent}" stroke-opacity="0.6" />
+        <rect x="46" y="72" width="62" height="26" rx="7" fill="${p.accent}" />
+        <rect x="132" y="72" width="62" height="26" rx="7" fill="${p.surface}" stroke="${p.border}" stroke-dasharray="4 3" opacity="0.55" />`;
     default: {
       const exhaustive: never = scene;
       return exhaustive;
@@ -304,6 +326,69 @@ function componentBody(
         <path d="M100 54c-4 0-6 3-6 7v5l-3 3h18l-3-3v-5c0-4-2-7-6-7Z" fill="none" stroke="${p.accent}" stroke-width="1.6" />
         <circle cx="124" cy="48" r="9" fill="${p.accent}" />
         <rect x="120" y="46" width="8" height="4" rx="1.5" fill="${p.bg}" opacity="0.8" />`;
+    case "nav":
+      return `
+        <rect x="26" y="26" width="188" height="30" rx="7" fill="${p.raised}" stroke="${p.border}" />
+        <rect x="34" y="37" width="26" height="7" rx="3" fill="${p.text}" opacity="0.55" />
+        <rect x="74" y="35" width="34" height="12" rx="4" fill="${p.accentSoft}" stroke="${p.accent}" stroke-opacity="0.55" />
+        <rect x="116" y="37" width="26" height="7" rx="3" fill="${p.border}" />
+        <rect x="150" y="37" width="26" height="7" rx="3" fill="${p.border}" />
+        <rect x="26" y="72" width="48" height="5" rx="2.5" fill="${p.faint}" opacity="0.65" />
+        <rect x="80" y="72" width="58" height="5" rx="2.5" fill="${p.faint}" opacity="0.4" />
+        <rect x="26" y="92" width="188" height="26" rx="6" fill="${p.surface}" stroke="${p.border}" />`;
+    case "menu":
+      return `
+        <rect x="96" y="30" width="116" height="76" rx="8" fill="${p.raised}" stroke="${p.border}" />
+        <rect x="106" y="40" width="34" height="4" rx="2" fill="${p.faint}" opacity="0.5" />
+        <rect x="106" y="52" width="96" height="13" rx="4" fill="${p.accentSoft}" stroke="${p.accent}" stroke-opacity="0.45" />
+        <rect x="106" y="69" width="96" height="13" rx="4" fill="${p.surface}" />
+        <rect x="106" y="86" width="96" height="13" rx="4" fill="${p.surface}" opacity="0.7" />
+        <circle cx="72" cy="30" r="5" fill="${p.accent}" />`;
+    case "modal":
+      return `
+        <rect x="20" y="18" width="200" height="104" rx="8" fill="${p.surface}" opacity="0.55" />
+        <rect x="54" y="34" width="132" height="72" rx="8" fill="${p.raised}" stroke="${p.border}" />
+        <rect x="66" y="46" width="54" height="6" rx="3" fill="${p.text}" opacity="0.6" />
+        <rect x="66" y="58" width="98" height="3" rx="1.5" fill="${p.border}" />
+        <rect x="66" y="66" width="78" height="3" rx="1.5" fill="${p.border}" />
+        <rect x="66" y="84" width="42" height="14" rx="4" fill="${p.surface}" stroke="${p.border}" />
+        <rect x="114" y="84" width="44" height="14" rx="4" fill="${p.accent}" />`;
+    case "toast":
+      return `
+        <rect x="52" y="40" width="136" height="26" rx="8" fill="${p.raised}" stroke="${p.accent}" stroke-opacity="0.5" />
+        <circle cx="66" cy="53" r="4" fill="${p.accent}" />
+        <rect x="76" y="50" width="74" height="5" rx="2.5" fill="${p.text}" opacity="0.6" />
+        <rect x="60" y="76" width="120" height="22" rx="8" fill="${p.raised}" stroke="${p.border}" opacity="0.7" />
+        <rect x="72" y="84" width="62" height="5" rx="2.5" fill="${p.border}" />`;
+    case "card":
+      return `
+        <rect x="44" y="24" width="152" height="92" rx="9" fill="${p.raised}" stroke="${p.border}" />
+        <rect x="56" y="36" width="34" height="4" rx="2" fill="${p.faint}" opacity="0.6" />
+        <rect x="56" y="48" width="84" height="7" rx="3" fill="${p.text}" opacity="0.6" />
+        <rect x="56" y="62" width="112" height="3" rx="1.5" fill="${p.border}" />
+        <rect x="56" y="70" width="86" height="3" rx="1.5" fill="${p.border}" />
+        <rect x="56" y="88" width="52" height="16" rx="5" fill="${p.accentSoft}" stroke="${p.accent}" stroke-opacity="0.5" />`;
+    case "list":
+      return `
+        <rect x="28" y="26" width="184" height="20" rx="4" fill="${p.surface}" />
+        <rect x="38" y="33" width="46" height="4" rx="2" fill="${p.faint}" opacity="0.6" />
+        <rect x="132" y="33" width="30" height="4" rx="2" fill="${p.faint}" opacity="0.5" />
+        <rect x="28" y="50" width="184" height="20" rx="4" fill="${p.raised}" stroke="${p.accent}" stroke-opacity="0.35" />
+        <rect x="38" y="57" width="58" height="4" rx="2" fill="${p.text}" opacity="0.55" />
+        <rect x="132" y="57" width="30" height="4" rx="2" fill="${p.border}" />
+        <rect x="28" y="74" width="184" height="20" rx="4" fill="${p.raised}" stroke="${p.border}" />
+        <rect x="38" y="81" width="46" height="4" rx="2" fill="${p.text}" opacity="0.45" />
+        <rect x="132" y="81" width="30" height="4" rx="2" fill="${p.border}" />
+        <rect x="28" y="98" width="184" height="20" rx="4" fill="${p.raised}" stroke="${p.border}" />
+        <rect x="38" y="105" width="52" height="4" rx="2" fill="${p.text}" opacity="0.4" />
+        <rect x="132" y="105" width="30" height="4" rx="2" fill="${p.border}" />`;
+    case "empty":
+      return `
+        <circle cx="120" cy="48" r="18" fill="${p.surface}" stroke="${p.border}" stroke-dasharray="4 3" />
+        <rect x="104" y="45" width="32" height="4" rx="2" fill="${p.faint}" opacity="0.6" />
+        <rect x="88" y="78" width="64" height="6" rx="3" fill="${p.text}" opacity="0.5" />
+        <rect x="76" y="92" width="88" height="3" rx="1.5" fill="${p.border}" />
+        <rect x="94" y="104" width="52" height="16" rx="5" fill="${p.accentSoft}" stroke="${p.accent}" stroke-opacity="0.5" />`;
     default: {
       const exhaustive: never = control;
       return exhaustive;

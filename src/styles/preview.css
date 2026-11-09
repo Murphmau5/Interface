@@ -1969,3 +1969,126 @@
 .pv-card-line[data-width="short"] {
   width: 24%;
 }
+
+/* ---- 动效：缓动曲线 / 减弱动效 ---- */
+.pv-easing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  padding: 8% 7%;
+}
+
+.pv-easing-track-wrap {
+  display: grid;
+  gap: 7px;
+}
+
+.pv-easing-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-2xs);
+}
+
+.pv-easing-track {
+  position: relative;
+  height: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background-color: var(--surface-raised);
+}
+
+.pv-easing-knob {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: var(--radius-pill);
+  background-color: var(--text-secondary);
+  will-change: transform;
+}
+
+.pv-easing-knob[data-tone="accent"] {
+  background-color: var(--accent);
+}
+
+.pv-reduced {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 5% 8%;
+}
+
+.pv-reduced .pv-rows {
+  position: static;
+  gap: 6px;
+  padding: 0;
+}
+
+.pv-reduced .pv-row {
+  height: 24px;
+  min-height: 24px;
+}
+
+.pv-reduced [data-reduced] {
+  opacity: 0.6;
+}
+
+.pv-reduced-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-2xs);
+}
+
+/* ---- 反馈：交互状态 ---- */
+.pv-states {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  gap: 14px 18px;
+  padding: 8%;
+}
+
+.pv-state {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  will-change: transform, opacity;
+}
+
+.pv-state-chip {
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-raised);
+  font-size: var(--font-size-sm);
+}
+
+.pv-state[data-state="1"] .pv-state-chip {
+  border-color: var(--accent-line);
+  background-color: var(--accent-soft);
+}
+
+.pv-state[data-state="2"] .pv-state-chip {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.pv-state[data-state="3"] .pv-state-chip {
+  border-style: dashed;
+  color: var(--text-secondary);
+}
+
+.pv-state-hint {
+  color: var(--text-secondary);
+  font-size: var(--font-size-2xs);
+}
+

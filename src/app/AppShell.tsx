@@ -457,18 +457,30 @@ export function AppShell() {
                       categoryBySection[activeSection] === category.id;
                     const count =
                       "count" in category ? (category as { count: number }).count : null;
+                    const note =
+                      "note" in category
+                        ? (category as { note?: string }).note
+                        : undefined;
                     return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        aria-pressed={selected}
-                        data-active={selected}
-                        onClick={() => activeSection && chooseCategory(activeSection, category.id)}
-                        className="rail-item rail-item-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
-                      >
-                        <span className="truncate">{category.label}</span>
-                        <span className="rail-count">{count ?? "—"}</span>
-                      </button>
+                      <div key={category.id}>
+                        <button
+                          type="button"
+                          aria-pressed={selected}
+                          data-active={selected}
+                          onClick={() =>
+                            activeSection && chooseCategory(activeSection, category.id)
+                          }
+                          className="rail-item rail-item-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+                        >
+                          <span className="truncate">{category.label}</span>
+                          <span className="rail-count">{count ?? "—"}</span>
+                        </button>
+                        {count === 0 && note ? (
+                          <p className="px-2 pb-1.5 text-2xs leading-snug text-ink-faint">
+                            {note}
+                          </p>
+                        ) : null}
+                      </div>
                     );
                   })}
                 </div>

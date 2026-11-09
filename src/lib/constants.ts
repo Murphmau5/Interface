@@ -32,9 +32,10 @@ export const CONFIDENCE_LABELS: Record<string, string> = {
 };
 
 export const CONFIDENCE_OPTIONS = [
-  { value: "unknown", label: "未知" },
+  { value: "verified", label: "已验证" },
   { value: "estimated", label: "推测" },
   { value: "user_defined", label: "用户定义" },
+  { value: "unknown", label: "未知" },
 ] as const;
 
 export const PLATFORM_LABELS: Record<string, string> = {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 
 import { COMPONENT_CONTROL_LABELS, type ComponentSpec } from "@/lib/preview";
 
@@ -7,6 +7,18 @@ import { usePreviewAnimations, type PreviewAnimationPlan } from "./usePreviewAni
 
 const SEGMENTS = ["日", "周", "月"];
 const TABS = ["概览", "详情", "记录"];
+
+const PANEL: CSSProperties = {
+  background: "var(--surface-raised)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+};
+
+function GenericCaption({ text, style }: { text: string; style?: CSSProperties }) {
+  return (
+    <span style={{ fontSize: 12, color: "var(--text-secondary)", ...style }}>{text}</span>
+  );
+}
 
 function BellIcon() {
   return (
@@ -181,6 +193,48 @@ export function ComponentRenderer({
             { transform: "scale(1)", offset: 0 },
             { transform: "scale(1.3)", offset: 0.5 },
             { transform: "scale(1)", offset: 1 },
+          ]);
+        case "nav":
+          return single("[data-pv-nav-active]", [
+            { opacity: 0.35, offset: 0 },
+            { opacity: 1, offset: 0.5 },
+            { opacity: 0.35, offset: 1 },
+          ]);
+        case "menu":
+          return single("[data-pv-menu]", [
+            { opacity: 0, transform: "translate3d(0, -6px, 0) scale(0.97)", offset: 0 },
+            { opacity: 1, transform: "translate3d(0, 0, 0) scale(1)", offset: 0.5 },
+            { opacity: 1, transform: "translate3d(0, 0, 0) scale(1)", offset: 1 },
+          ]);
+        case "modal":
+          return single("[data-pv-modal]", [
+            { opacity: 0, transform: "translate3d(0, 12px, 0) scale(0.98)", offset: 0 },
+            { opacity: 1, transform: "translate3d(0, 0, 0) scale(1)", offset: 0.5 },
+            { opacity: 1, transform: "translate3d(0, 0, 0) scale(1)", offset: 1 },
+          ]);
+        case "toast":
+          return single("[data-pv-toast]", [
+            { opacity: 0, transform: "translate3d(0, 8px, 0)", offset: 0 },
+            { opacity: 1, transform: "translate3d(0, 0, 0)", offset: 0.5 },
+            { opacity: 1, transform: "translate3d(0, 0, 0)", offset: 1 },
+          ]);
+        case "card":
+          return single("[data-pv-card]", [
+            { opacity: 0.4, transform: "translate3d(0, 6px, 0)", offset: 0 },
+            { opacity: 1, transform: "translate3d(0, 0, 0)", offset: 0.5 },
+            { opacity: 1, transform: "translate3d(0, 0, 0)", offset: 1 },
+          ]);
+        case "list":
+          return single("[data-pv-row]", [
+            { opacity: 0.3, transform: "translate3d(0, 5px, 0)", offset: 0 },
+            { opacity: 1, transform: "translate3d(0, 0, 0)", offset: 0.5 },
+            { opacity: 1, transform: "translate3d(0, 0, 0)", offset: 1 },
+          ]);
+        case "empty":
+          return single("[data-pv-empty]", [
+            { opacity: 0.4, transform: "scale(0.98)", offset: 0 },
+            { opacity: 1, transform: "scale(1)", offset: 0.5 },
+            { opacity: 1, transform: "scale(1)", offset: 1 },
           ]);
       }
     },
@@ -421,6 +475,199 @@ export function ComponentRenderer({
             {count > 99 ? "99+" : count}
           </span>
         </button>
+      ) : null}
+
+      {component.control === "nav" ? (
+        <div style={{ width: "min(540px, 100%)", display: "grid", gap: 8 }}>
+          <div style={{ ...PANEL, padding: 8, display: "flex", alignItems: "center", gap: 4 }}>
+            <strong style={{ fontSize: 13, margin: "0 8px 0 4px" }}>工作台</strong>
+            {["概览", "案例", "设置"].map((label, index) => (
+              <span
+                key={label}
+                data-pv-nav-active={index === 0 ? "true" : undefined}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  background: index === 0 ? "var(--surface)" : "transparent",
+                  color: index === 0 ? "var(--text-primary)" : "var(--text-secondary)",
+                }}
+              >
+                {label}
+              </span>
+            ))}
+            <span style={{ flex: 1 }} />
+            <span
+              aria-hidden
+              style={{ width: 22, height: 22, borderRadius: 999, background: "var(--accent)", opacity: 0.75 }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <GenericCaption text="工作台" />
+            <GenericCaption text="/" />
+            <GenericCaption text="案例库" />
+          </div>
+        </div>
+      ) : null}
+
+      {component.control === "menu" ? (
+        <div style={{ display: "grid", gap: 8, width: "min(260px, 100%)" }}>
+          <div data-pv-menu style={{ ...PANEL, padding: 6, boxShadow: "0 16px 34px rgba(0,0,0,0.22)" }}>
+            <GenericCaption text="操作" style={{ display: "block", padding: "4px 8px" }} />
+            {["复制链接", "导出 JSON", "归档案例"].map((label, index) => (
+              <div
+                key={label}
+                style={{
+                  padding: "7px 8px",
+                  borderRadius: 7,
+                  fontSize: 12,
+                  background: index === 1 ? "var(--surface)" : "transparent",
+                }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+          <GenericCaption text="Esc 关闭 · 焦点回到锚点" />
+        </div>
+      ) : null}
+
+      {component.control === "modal" ? (
+        <div
+          style={{
+            width: "min(430px, 100%)",
+            padding: 18,
+            borderRadius: 16,
+            background: "color-mix(in srgb, var(--surface) 72%, transparent)",
+          }}
+        >
+          <div data-pv-modal style={{ ...PANEL, padding: 16, boxShadow: "0 18px 44px rgba(0,0,0,0.28)" }}>
+            <strong style={{ fontSize: 14 }}>归档这个案例？</strong>
+            <p style={{ margin: "6px 0 14px", fontSize: 12, color: "var(--text-secondary)" }}>
+              归档后仍可搜索，但不再出现在默认列表。
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <span style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, border: "1px solid var(--border)" }}>
+                取消
+              </span>
+              <span
+                style={{ padding: "6px 12px", borderRadius: 8, fontSize: 12, background: "var(--accent)", color: "var(--accent-ink, #fff)" }}
+              >
+                归档
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {component.control === "toast" ? (
+        <div style={{ display: "grid", gap: 8, width: "min(330px, 100%)" }}>
+          <div
+            data-pv-toast
+            style={{ ...PANEL, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}
+          >
+            <span aria-hidden style={{ width: 8, height: 8, borderRadius: 999, background: "var(--accent)" }} />
+            已加入收藏
+          </div>
+          <div
+            style={{
+              ...PANEL,
+              padding: "10px 12px",
+              fontSize: 12,
+              color: "var(--text-secondary)",
+              opacity: 0.75,
+            }}
+          >
+            后台同步完成
+          </div>
+        </div>
+      ) : null}
+
+      {component.control === "card" ? (
+        <article data-pv-card style={{ ...PANEL, padding: 16, width: "min(320px, 100%)" }}>
+          <GenericCaption text="案例 · 玻璃拟态" />
+          <strong style={{ display: "block", margin: "6px 0 4px", fontSize: 14 }}>半透明磨砂面板</strong>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-secondary)" }}>
+            1px 亮边与多层浮动，暗色下降饱和。
+          </p>
+          <span
+            style={{ display: "inline-block", padding: "6px 12px", borderRadius: 8, fontSize: 12, border: "1px solid var(--border)" }}
+          >
+            查看参数
+          </span>
+        </article>
+      ) : null}
+
+      {component.control === "list" ? (
+        <div style={{ width: "min(480px, 100%)", ...PANEL, overflow: "hidden", fontSize: 12 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 96px 56px",
+              padding: "9px 12px",
+              color: "var(--text-secondary)",
+              background: "var(--surface)",
+            }}
+          >
+            <span>名称</span>
+            <span>类型</span>
+            <span>置信度</span>
+          </div>
+          {[
+            ["玻璃拟态", "风格", "推测"],
+            ["错峰入场", "动效", "推测"],
+            ["空状态", "反馈", "自定义"],
+          ].map((row, index) => (
+            <div
+              key={row[0]}
+              data-pv-row={index === 0 ? "true" : undefined}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 96px 56px",
+                padding: "9px 12px",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              {row.map((cell) => (
+                <span key={cell}>{cell}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {component.control === "empty" ? (
+        <div data-pv-empty style={{ display: "grid", justifyItems: "center", gap: 8, textAlign: "center" }}>
+          <span
+            aria-hidden
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              background: "var(--surface-raised)",
+              border: "1px dashed var(--border)",
+              display: "grid",
+              placeItems: "center",
+              color: "var(--text-secondary)",
+              fontSize: 18,
+            }}
+          >
+            +
+          </span>
+          <strong style={{ fontSize: 14 }}>还没有案例</strong>
+          <GenericCaption text="导入内容包，或新建第一条案例" />
+          <span
+            style={{
+              padding: "7px 14px",
+              borderRadius: 9,
+              fontSize: 12,
+              background: "var(--accent)",
+              color: "var(--accent-ink, #fff)",
+            }}
+          >
+            新建案例
+          </span>
+        </div>
       ) : null}
 
       <div className="pv-component-caption">

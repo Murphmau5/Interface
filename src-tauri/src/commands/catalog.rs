@@ -13,6 +13,7 @@ struct CategoryRow {
     group_label: String,
     label: String,
     count: i64,
+    note: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -21,6 +22,8 @@ pub struct CatalogCategory {
     pub id: String,
     pub label: String,
     pub count: i64,
+    /// 暂缺说明（如无可用预览通道），空串表示无
+    pub note: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -50,6 +53,7 @@ pub async fn catalog_list(db: State<'_, Db>) -> Result<Vec<CatalogDomain>, AppEr
                c.domain,
                c.group_label,
                c.label,
+               c.note,
                COUNT(a.id) AS count
         FROM categories c
         LEFT JOIN cases a
@@ -98,6 +102,7 @@ pub async fn catalog_list(db: State<'_, Db>) -> Result<Vec<CatalogDomain>, AppEr
             id: row.id,
             label: row.label,
             count: row.count,
+            note: row.note,
         });
     }
 

@@ -12,7 +12,9 @@ export type MotionScene =
   | "micro"
   | "spring"
   | "parallax"
-  | "loading";
+  | "loading"
+  | "easing"
+  | "reduced";
 
 export type FeedbackScene =
   | "toast"
@@ -21,7 +23,8 @@ export type FeedbackScene =
   | "confirm"
   | "loading"
   | "empty"
-  | "error";
+  | "error"
+  | "states";
 
 export type ThemeScene =
   | "crossfade"
@@ -43,7 +46,14 @@ export type ComponentControl =
   | "tabs"
   | "progress"
   | "skeleton"
-  | "badge";
+  | "badge"
+  | "nav"
+  | "menu"
+  | "modal"
+  | "toast"
+  | "card"
+  | "list"
+  | "empty";
 
 export type StyleTreatment =
   | "flat"
@@ -139,6 +149,8 @@ export const MOTION_SCENES = [
   "spring",
   "parallax",
   "loading",
+  "easing",
+  "reduced",
 ] as const;
 export const MOTION_SCENE_LABELS: Record<MotionScene, string> = {
   stagger: "错峰入场",
@@ -148,6 +160,8 @@ export const MOTION_SCENE_LABELS: Record<MotionScene, string> = {
   spring: "回弹移动",
   parallax: "视差位移",
   loading: "加载脉冲",
+  easing: "缓动曲线",
+  reduced: "减弱动效",
 };
 
 export const FEEDBACK_SCENES = [
@@ -158,6 +172,7 @@ export const FEEDBACK_SCENES = [
   "loading",
   "empty",
   "error",
+  "states",
 ] as const;
 export const FEEDBACK_SCENE_LABELS: Record<FeedbackScene, string> = {
   toast: "悬浮提示",
@@ -167,6 +182,7 @@ export const FEEDBACK_SCENE_LABELS: Record<FeedbackScene, string> = {
   loading: "加载骨架",
   empty: "空状态",
   error: "错误重试",
+  states: "交互状态",
 };
 
 export const THEME_SCENES = [
@@ -200,6 +216,13 @@ export const COMPONENT_CONTROLS = [
   "progress",
   "skeleton",
   "badge",
+  "nav",
+  "menu",
+  "modal",
+  "toast",
+  "card",
+  "list",
+  "empty",
 ] as const;
 export const COMPONENT_CONTROL_LABELS: Record<ComponentControl, string> = {
   switch: "开关",
@@ -213,6 +236,13 @@ export const COMPONENT_CONTROL_LABELS: Record<ComponentControl, string> = {
   progress: "进度条",
   skeleton: "骨架屏",
   badge: "徽标按钮",
+  nav: "导航结构",
+  menu: "浮层菜单",
+  modal: "模态层",
+  toast: "轻提示",
+  card: "卡片",
+  list: "列表与表格",
+  empty: "空状态",
 };
 
 export const STYLE_TREATMENTS = [
@@ -345,7 +375,8 @@ function parseMotion(raw: Record<string, unknown>): MotionSpec {
     kind: "motion",
     // 老 payload 没有 scene，落到错峰入场，保持原观感
     scene: oneOf(raw.scene, MOTION_SCENES, "stagger"),
-    durationMs: round(clamp(raw.durationMs, 200, 5000, 900)),
+    // 下限 120：微交互按知识域口径可到 120–200ms
+    durationMs: round(clamp(raw.durationMs, 120, 5000, 900)),
     delayMs: round(clamp(raw.delayMs, 0, 2000, 0)),
     staggerMs: round(clamp(raw.staggerMs, 0, 400, 70)),
     easing: pickEasing(raw.easing, DEFAULT_EASING),
@@ -532,7 +563,7 @@ export function previewFields(spec: PreviewSpec): PreviewField[] {
     case "motion":
       return [
         sceneField("scene", "场景", MOTION_SCENES, MOTION_SCENE_LABELS),
-        { key: "durationMs", label: "时长", type: "number", min: 200, max: 5000, step: 20, unit: "ms" },
+        { key: "durationMs", label: "时长", type: "number", min: 120, max: 5000, step: 20, unit: "ms" },
         { key: "delayMs", label: "延迟", type: "number", min: 0, max: 2000, step: 20, unit: "ms" },
         { key: "staggerMs", label: "错峰", type: "number", min: 0, max: 400, step: 5, unit: "ms" },
         easingField,
@@ -669,6 +700,18 @@ function motionPrompt(spec: MotionSpec): string[] {
         ...base,
         "三个点依次脉冲，同时一条进度扫光从左到右循环；加载结束后整体淡出。",
       ];
+    case "easing":
+      return [
+        "实现「缓动曲线」对照：",
+        ...base,
+        "两条等长轨迹同时出发，一条 linear、一条自定义贝塞尔，终点一致，用落点节奏说明曲线差异。",
+      ];
+    case "reduced":
+      return [
+        "实现「减弱动效」降级：",
+        ...base,
+        "左侧播放完整入场，右侧在 prefers-reduced-motion: reduce 下直接呈现终态，只保留一次 120ms 透明度变化。",
+      ];
   }
 }
 
@@ -765,6 +808,24 @@ function motionSnippet(spec: MotionSpec): string[] {
         `@keyframes demo-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }`,
         `${open}`,
       ];
+    case "easing":
+      return [
+        `${open}css`,
+        `.demo-track[data-curve="linear"] { animation: demo-travel ${spec.durationMs}ms linear both; }`,
+        `.demo-track[data-curve="bezier"] { animation: demo-travel ${spec.durationMs}ms ${spec.easing} both; }`,
+        `@keyframes demo-travel { from { transform: translateX(0); } to { transform: translateX(var(--travel, 120px)); } }`,
+        `${open}`,
+      ];
+    case "reduced":
+      return [
+        `${open}css`,
+        `.demo-row { animation: demo-motion ${spec.durationMs}ms ${spec.easing} both; }`,
+        `@media (prefers-reduced-motion: reduce) {`,
+        `  .demo-row { animation: demo-fade 120ms linear both; }`,
+        `}`,
+        `@keyframes demo-fade { from { opacity: ${Math.max(0.2, spec.opacity)}; } to { opacity: 1; } }`,
+        `${open}`,
+      ];
   }
 }
 
@@ -812,6 +873,12 @@ function feedbackPrompt(spec: FeedbackSpec): string[] {
         "实现「错误重试」：",
         rhythm,
         "行内错误条滑入并给出重试按钮，错误色只用于图标与描边，正文保持可读。",
+      ];
+    case "states":
+      return [
+        "实现控件的四种交互状态：",
+        rhythm,
+        "默认 / 悬停 / 按下 / 禁用四个样品并排，状态之间只变表面、描边与透明度，不改尺寸与位置。",
       ];
   }
 }
@@ -887,6 +954,15 @@ function feedbackSnippet(spec: FeedbackSpec): string[] {
         `@keyframes demo-slide { from { opacity: 0; transform: translate3d(0, -6px, 0); } to { opacity: 1; transform: none; } }`,
         `${open}`,
       ];
+    case "states":
+      return [
+        `${open}css`,
+        `.demo-state { transition: background-color ${spec.decayMs}ms ${spec.easing}, border-color ${spec.decayMs}ms ${spec.easing}; }`,
+        `.demo-state[data-state="hover"] { background: var(--surface-raised); }`,
+        `.demo-state[data-state="pressed"] { transform: scale(.98); }`,
+        `.demo-state[data-state="disabled"] { opacity: .45; pointer-events: none; }`,
+        `${open}`,
+      ];
   }
 }
 
@@ -916,6 +992,20 @@ function componentPrompt(spec: ComponentSpec): string[] {
       return ["实现一个骨架屏：", head, "用 CSS shimmer 表达加载，prefers-reduced-motion 下降级为静态占位。", foot];
     case "badge":
       return ["实现一个带数字的徽标按钮：", head, "数字变化时做一次 scale 弹跳，超过 99 显示 99+。", foot];
+    case "nav":
+      return ["实现一套导航骨架（顶部导航 / 侧栏 / 面包屑共用）：", head, "当前项用表面色与字重标记，其余项保持同尺寸；折叠与展开只切换宽度变量，不移动内容。", foot];
+    case "menu":
+      return ["实现浮层菜单（下拉 / 命令面板 / 气泡共用）：", head, "浮层贴着锚点展开，带 4px 偏移与轻微缩放；Esc 关闭、关闭后焦点回到锚点。", foot];
+    case "modal":
+      return ["实现模态层（对话框 / 底部抽屉共用）：", head, "遮罩淡入、面板缩放上浮；打开时锁定滚动并把焦点移入面板，关闭后恢复原焦点。", foot];
+    case "toast":
+      return ["实现轻提示（Toast / 通知条共用）：", head, "多条提示纵向堆叠，进入与退出只用位移与透明度；不抢焦点，可手动关闭。", foot];
+    case "card":
+      return ["实现卡片容器：", head, "标题、正文、操作槽三段式；卡间距统一，悬停只提亮描边，不做位移。", foot];
+    case "list":
+      return ["实现列表与表格行：", head, "行高与分隔线统一，悬停整行提亮；表头保持位置固定，行内操作在悬停时出现。", foot];
+    case "empty":
+      return ["实现空状态：", head, "图形、标题、说明与单一主行动纵向居中；图形轻微呼吸，主行动保持焦点环。", foot];
   }
 }
 
@@ -960,6 +1050,57 @@ function componentSnippet(spec: ComponentSpec): string[] {
       ];
     case "badge":
       return [`${open}css`, `.demo-badge { transition: transform ${spec.durationMs}ms ${spec.easing}; }`, `.demo-badge[data-bump="true"] { transform: scale(1.15); }`, `${open}`];
+    case "nav":
+      return [
+        `${open}css`,
+        `.demo-nav-item[aria-current="page"] { background: var(--surface-raised); font-weight: 600; }`,
+        `.demo-nav { transition: width ${spec.durationMs}ms ${spec.easing}; }`,
+        `${open}`,
+      ];
+    case "menu":
+      return [
+        `${open}css`,
+        `.demo-menu { transform-origin: top left; animation: demo-pop ${spec.durationMs}ms ${spec.easing} both; }`,
+        `@keyframes demo-pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } to { opacity: 1; transform: none; } }`,
+        `${open}`,
+      ];
+    case "modal":
+      return [
+        `${open}css`,
+        `.demo-scrim { animation: demo-fade ${spec.durationMs}ms ${spec.easing} both; }`,
+        `.demo-modal { animation: demo-rise ${spec.durationMs}ms ${spec.easing} both; }`,
+        `@keyframes demo-rise { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }`,
+        `${open}`,
+      ];
+    case "toast":
+      return [
+        `${open}css`,
+        `.demo-toast { animation: demo-toast-in ${spec.durationMs}ms ${spec.easing} both; }`,
+        `@keyframes demo-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }`,
+        `@media (prefers-reduced-motion: reduce) { .demo-toast { animation: none; } }`,
+        `${open}`,
+      ];
+    case "card":
+      return [
+        `${open}css`,
+        `.demo-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-raised); }`,
+        `.demo-card:hover { border-color: var(--accent); transition: border-color ${spec.durationMs}ms ${spec.easing}; }`,
+        `${open}`,
+      ];
+    case "list":
+      return [
+        `${open}css`,
+        `.demo-row:hover { background: var(--surface-raised); transition: background-color ${spec.durationMs}ms ${spec.easing}; }`,
+        `.demo-row { border-bottom: 1px solid var(--border); }`,
+        `${open}`,
+      ];
+    case "empty":
+      return [
+        `${open}css`,
+        `.demo-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; }`,
+        `.demo-empty-cta { transition: transform ${spec.durationMs}ms ${spec.easing}; }`,
+        `${open}`,
+      ];
     default:
       return base;
   }
@@ -1152,4 +1293,78 @@ export function buildPreviewSnippet(spec: PreviewSpec): string {
     case "style":
       return styleSnippet(spec).join("\n");
   }
+}
+
+/* ---------------------------- 内容包附加字段 ---------------------------- */
+
+export type ParamSourceLevel = "verified" | "estimated" | "user_defined" | "unknown";
+
+export const PARAM_SOURCE_LEVELS = [
+  "verified",
+  "estimated",
+  "user_defined",
+  "unknown",
+] as const;
+
+export const PARAM_SOURCE_LABELS: Record<ParamSourceLevel, string> = {
+  verified: "已验证",
+  estimated: "推测",
+  user_defined: "自定义",
+  unknown: "未知",
+};
+
+export const PARAM_KEY_LABELS: Record<string, string> = {
+  scene: "场景",
+  control: "控件",
+  treatment: "形态",
+  durationMs: "时长",
+  delayMs: "延迟",
+  staggerMs: "错峰",
+  easing: "缓动",
+  distance: "位移",
+  scale: "缩放",
+  opacity: "透明度",
+  blur: "模糊",
+  triggerMs: "触发",
+  holdMs: "停留",
+  decayMs: "衰减",
+  tone: "语气",
+  radiusPx: "圆角",
+  depth: "深度",
+};
+
+/** 读取 payload 根对象的 paramSources；无有效项返回 null。 */
+export function parseParamSources(payloadJson: string): Record<string, ParamSourceLevel> | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payloadJson);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed) || !isRecord(parsed.paramSources)) return null;
+
+  const out: Record<string, ParamSourceLevel> = {};
+  for (const [key, value] of Object.entries(parsed.paramSources)) {
+    if (
+      typeof value === "string" &&
+      (PARAM_SOURCE_LEVELS as readonly string[]).includes(value)
+    ) {
+      out[key] = value as ParamSourceLevel;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/** 读取内容包条目自带的提示词；没有则返回 null（调用方回退到生成提示词）。 */
+export function parseCasePrompt(payloadJson: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payloadJson);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed) || typeof parsed.prompt !== "string") return null;
+  const prompt = parsed.prompt.trim();
+  if (!prompt || prompt.length > 8000) return null;
+  return prompt;
 }

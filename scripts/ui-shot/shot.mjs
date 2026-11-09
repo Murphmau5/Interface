@@ -15,7 +15,8 @@
  *   --view grid|table    列表视图（默认 grid）
  *   --route <hash>       路由（默认 #/library）
  *   --probe              执行无窗口压测并输出 4 张探针图
- *   --audit              逐个 kind 检查预览舞台/场景主体占比并各截一张图
+ *   --audit              遍历当前夹具全部案例：缩略图、场景主体占比、中心偏差、溢出与控制台错误，
+ *                        失败清单写入 .screenshots/1.0.9/_probe/audit-failures.json
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -270,7 +271,12 @@ const READY_EXPRESSION = `(async () => {
   if (list !== true) return "列表未出现";
   await document.fonts.ready;
   const images = await until(
-    () => Array.from(document.images).every((img) => img.complete === true),
+    () => Array.from(document.images)
+      .filter((img) => {
+        const box = img.getBoundingClientRect();
+        return box.top < window.innerHeight && box.bottom > 0;
+      })
+      .every((img) => img.complete === true),
     8000,
     "images",
   );
@@ -885,105 +891,193 @@ const AUDIT_EXPRESSION = `(() => {
 
 async function runAudit(cdp, sessionId) {
   const entries = [];
-  const seen = new Set();
-  const total = await evaluate(
-    cdp,
-    sessionId,
-    `document.querySelectorAll("#content-list .list-card").length`,
-    "audit.count",
-  );
-  log(`审计卡片数：${total}`);
+  const failures = [];
+  const processed = new Set();
+  let guard = 0;
 
-  for (let index = 0; index < total; index += 1) {
-    const kind = await evaluate(
+  const visibleLabels = () =>
+    evaluate(
+      cdp,
+      sessionId,
+      `[...document.querySelectorAll("#content-list .list-card")].map((card) => ({
+        label: card.getAttribute("aria-label"),
+        poster: Boolean(
+          card.querySelector('.list-card-thumb img[src^="data:image/svg"]'),
+        ),
+      }))`,
+      "audit.list",
+    );
+
+  while (guard < 80) {
+    guard += 1;
+    const cards = (await visibleLabels()) || [];
+    for (const card of cards) {
+      if (!card.label || processed.has(card.label)) continue;
+      processed.add(card.label);
+
+      const selected = await evaluate(
+        cdp,
+        sessionId,
+        `(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+          const card = [...document.querySelectorAll("#content-list .list-card")].find(
+            (node) => node.getAttribute("aria-label") === ${JSON.stringify(card.label)},
+          );
+          if (!card) return false;
+          card.scrollIntoView({ block: "nearest" });
+          await wait(60);
+          card.click();
+          await wait(560);
+          return true;
+        })()`,
+        "audit.select",
+      );
+      if (!selected) {
+        failures.push({ label: card.label, reason: "卡片在点击前消失" });
+        continue;
+      }
+
+      const kind = await evaluate(
+        cdp,
+        sessionId,
+        `(() => {
+          const stage = document.querySelector(".preview-stage");
+          return stage ? stage.getAttribute("data-kind") : null;
+        })()`,
+        "audit.kind",
+      );
+      if (!kind) {
+        failures.push({ label: card.label, reason: "详情未渲染预览舞台" });
+        continue;
+      }
+
+      const frozen = await evaluate(
+        cdp,
+        sessionId,
+        `(() => {
+          const stage = document.querySelector(".preview-stage");
+          if (!stage) return 0;
+          const fraction = ${kind === "feedback" ? 0.22 : kind === "theme" ? 0.62 : 0.45};
+          let count = 0;
+          for (const animation of document.getAnimations()) {
+            const target = animation.effect && animation.effect.target;
+            if (!(target instanceof Element) || !stage.contains(target)) continue;
+            try {
+              const timing = animation.effect.getComputedTiming();
+              const duration = Number(timing.duration) || 0;
+              const delay = Number(timing.delay) || 0;
+              animation.pause();
+              animation.currentTime = delay + duration * fraction;
+              count += 1;
+            } catch {
+              // 跳过不可暂停的动画
+            }
+          }
+          return count;
+        })()`,
+        "audit.freeze",
+      );
+      void frozen;
+
+      const metrics = await evaluate(cdp, sessionId, AUDIT_EXPRESSION, "audit.measure");
+      const entry = {
+        label: card.label,
+        poster: card.poster,
+        ...(metrics.error ? { error: metrics.error } : metrics),
+      };
+      entries.push(entry);
+
+      const pass =
+        !metrics.error &&
+        card.poster &&
+        metrics.heightRatio >= 60 &&
+        Math.abs(metrics.centerOffset) <= 2 &&
+        metrics.overflowTotal <= 1;
+      if (!pass) {
+        const file = path.join(
+          PROBE_DIR,
+          `audit-fail-${String(failures.length + 1).padStart(2, "0")}-${kind}.png`,
+        );
+        const shot = await capture(cdp, sessionId, file);
+        failures.push({
+          label: card.label,
+          kind,
+          poster: card.poster,
+          reason: metrics.error || "场景主体不达标",
+          file: path.relative(ROOT, file),
+          size: shot.size,
+          heightRatio: metrics.heightRatio,
+          centerOffset: metrics.centerOffset,
+          overflowTotal: metrics.overflowTotal,
+        });
+      }
+    }
+
+    const moved = await evaluate(
       cdp,
       sessionId,
       `(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-        const card = document.querySelectorAll("#content-list .list-card")[${index}];
-        if (!card) return null;
-        card.scrollIntoView({ block: "nearest" });
-        await wait(60);
-        card.click();
-        await wait(560);
-        const stage = document.querySelector(".preview-stage");
-        return stage ? stage.getAttribute("data-kind") : null;
+        const scroller = document.getElementById("content-list");
+        if (!scroller) return { before: 0, after: 0, atBottom: true };
+        const before = scroller.scrollTop;
+        scroller.scrollTop = before + Math.max(240, scroller.clientHeight * 0.8);
+        await wait(280);
+        const after = scroller.scrollTop;
+        return {
+          before,
+          after,
+          atBottom: after + scroller.clientHeight >= scroller.scrollHeight - 2,
+        };
       })()`,
-      "audit.select",
+      "audit.scroll",
     );
-    if (!kind || seen.has(kind)) continue;
-    seen.add(kind);
-
-    const frozen = await evaluate(
-      cdp,
-      sessionId,
-      `(() => {
-        const stage = document.querySelector(".preview-stage");
-        if (!stage) return 0;
-        const fraction = ${kind === "feedback" ? 0.22 : kind === "theme" ? 0.62 : 0.45};
-        let count = 0;
-        for (const animation of document.getAnimations()) {
-          const target = animation.effect && animation.effect.target;
-          if (!(target instanceof Element) || !stage.contains(target)) continue;
-          try {
-            const timing = animation.effect.getComputedTiming();
-            const duration = Number(timing.duration) || 0;
-            const delay = Number(timing.delay) || 0;
-            animation.pause();
-            animation.currentTime = delay + duration * fraction;
-            count += 1;
-          } catch {
-            // 跳过不可暂停的动画
-          }
-        }
-        return count;
-      })()`,
-      "audit.freeze",
-    );
-    log(`${kind}：冻结 ${frozen} 个舞台动画用于截图`);
-
-    const metrics = await evaluate(cdp, sessionId, AUDIT_EXPRESSION, "audit.measure");
-    if (metrics.error) throw new Error(`审计 ${kind} 失败：${metrics.error}`);
-    const file = path.join(PROBE_DIR, `audit-${kind}.png`);
-    const shot = await capture(cdp, sessionId, file);
-    entries.push({ ...metrics, file: path.relative(ROOT, file), size: shot.size });
+    if (!moved || (moved.after === moved.before && moved.atBottom)) break;
   }
 
-  entries.sort((a, b) => a.kind.localeCompare(b.kind));
-  return entries;
+  const errors = (await drainErrors(cdp, sessionId)) || [];
+  log(`审计完成：${entries.length} 条有预览舞台，${processed.size} 张卡片被点到`);
+  if (errors.length) log(`审计期间控制台/异常 ${errors.length} 条`);
+
+  const report = { entries, failures, errors, processed: processed.size };
+  fs.mkdirSync(PROBE_DIR, { recursive: true });
+  fs.writeFileSync(
+    path.join(PROBE_DIR, "audit-failures.json"),
+    JSON.stringify(report, null, 2),
+    "utf8",
+  );
+  return report;
 }
 
-function summarizeAudit(entries) {
-  console.log("\n=== 预览舞台审计 ===");
-  console.log(
-    "kind       舞台(W×H)      场景(W×H)      高度占比   中心偏差   溢出(L/T/R/B)        截图",
-  );
-  let failures = 0;
+function summarizeAudit(report) {
+  const { entries, failures, errors } = report;
+  console.log("\n=== 全量预览审计 ===");
+  console.log(`已审计 ${entries.length} 条；失败 ${failures.length} 条；控制台错误 ${errors.length} 条`);
+  const byKind = new Map();
   for (const entry of entries) {
-    const pass =
-      entry.heightRatio >= 60 &&
-      Math.abs(entry.centerOffset) <= 2 &&
-      entry.overflowTotal <= 1;
-    if (!pass) failures += 1;
-    console.log(
-      [
-        entry.kind.padEnd(10),
-        `${entry.stage.w}×${entry.stage.h}`.padEnd(14),
-        `${entry.scene.w}×${entry.scene.h}`.padEnd(14),
-        `${entry.heightRatio.toFixed(1)}%`.padEnd(10),
-        `${entry.centerOffset.toFixed(1)}%`.padEnd(10),
-        `${entry.overflow.left}/${entry.overflow.top}/${entry.overflow.right}/${entry.overflow.bottom}`.padEnd(21),
-        `${pass ? "PASS" : "FAIL"} ${entry.file}`,
-      ].join(" "),
-    );
+    const key = entry.kind || entry.label;
+    byKind.set(key, (byKind.get(key) || 0) + 1);
   }
   console.log(
-    `结论：${entries.length === 5 ? "5 个 kind 全部采到" : `仅采到 ${entries.length} 个 kind`}，${
-      failures ? `${failures} 个不达标` : "全部达标"
-    }`,
+    `按类型：${[...byKind.entries()].map(([kind, count]) => `${kind} ${count}`).join(" / ")}`,
   );
+  const ratios = entries.filter((entry) => !entry.error).map((entry) => entry.heightRatio);
+  if (ratios.length) {
+    console.log(
+      `场景高度占比：最小 ${Math.min(...ratios).toFixed(1)}%；中位 ${ratios
+        .sort((a, b) => a - b)
+        [Math.floor(ratios.length / 2)].toFixed(1)}%`,
+    );
+  }
+  for (const failure of failures) {
+    console.log(`FAIL ${failure.label} · ${failure.reason} ${failure.file || ""}`);
+  }
+  for (const error of errors.slice(0, 10)) {
+    console.log(`ERR  ${error.kind}: ${error.text}`);
+  }
+  console.log("失败明细：.screenshots/1.0.9/_probe/audit-failures.json");
   console.log("====================\n");
-  console.log(JSON.stringify(entries, null, 2));
+  console.log(JSON.stringify({ entries: entries.length, failures, errors }, null, 2));
 }
 
 function cleanupProcess(child, label) {
@@ -1087,8 +1181,9 @@ async function main() {
     await preparePage(cdp, sessionId, options);
 
     if (options.audit) {
-      const entries = await runAudit(cdp, sessionId);
-      summarizeAudit(entries);
+      const report = await runAudit(cdp, sessionId);
+      summarizeAudit(report);
+      if (report.failures.length) process.exitCode = 1;
     } else if (options.probe) {
       const report = await runProbe(cdp, sessionId);
       summarizeReport(report, options);

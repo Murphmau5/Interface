@@ -10,7 +10,7 @@ use crate::error::AppError;
 use crate::search;
 
 pub const CASE_KINDS: [&str; 5] = ["style", "motion", "feedback", "component", "theme"];
-pub const CONFIDENCE_VALUES: [&str; 3] = ["unknown", "estimated", "user_defined"];
+pub const CONFIDENCE_VALUES: [&str; 4] = ["verified", "estimated", "user_defined", "unknown"];
 const MAX_TITLE_CHARS: usize = 120;
 const MAX_SUMMARY_CHARS: usize = 400;
 

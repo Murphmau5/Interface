@@ -1698,7 +1698,7 @@ dependencies = [
 
 [[package]]
 name = "jiexu-interface"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "pinyin",
  "reqwest",

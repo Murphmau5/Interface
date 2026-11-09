@@ -33,7 +33,12 @@ import {
   type SanitizeReport,
 } from "@/lib/ipc";
 import {
+  buildPreviewPrompt,
   defaultPreviewSpec,
+  PARAM_KEY_LABELS,
+  PARAM_SOURCE_LABELS,
+  parseCasePrompt,
+  parseParamSources,
   parsePreviewSpec,
   serializePreview,
   type PreviewKind,
@@ -354,6 +359,7 @@ export function CaseDetail({
   const [tagMessage, setTagMessage] = useState<string | null>(null);
   const [collectionChoice, setCollectionChoice] = useState("");
   const [collectionMessage, setCollectionMessage] = useState<string | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   const pendingPayload = useRef<string | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -377,6 +383,8 @@ export function CaseDetail({
   const confidenceLabel = CONFIDENCE_LABELS[item.confidence] ?? item.confidence;
   const platformLabel = PLATFORM_LABELS[item.platform] ?? item.platform;
   const tagLabels = tagsQuery.data?.map((tag) => tag.label) ?? [];
+  const paramSources = parseParamSources(item.payloadJson);
+  const casePrompt = parseCasePrompt(item.payloadJson) ?? buildPreviewPrompt(spec);
 
   // 切走案例时把未落库的参数补写一次，避免拖完滑块直接切走丢改动
   useEffect(() => {
@@ -648,6 +656,53 @@ export function CaseDetail({
               }
             />
             <PreviewPanel spec={spec} onChange={handleSpecChange} />
+            {paramSources ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-2xs text-ink-faint">参数来源</span>
+                {Object.entries(paramSources).map(([key, level]) => (
+                  <span
+                    key={key}
+                    className="chip"
+                    title={`${key} · ${PARAM_SOURCE_LABELS[level]}`}
+                  >
+                    <span className="confidence-dot" data-tone={level} />
+                    {PARAM_KEY_LABELS[key] ?? key} · {PARAM_SOURCE_LABELS[level]}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          <section aria-labelledby="prompt-heading" className="detail-section">
+            <SectionHead
+              id="prompt-heading"
+              title="提示词"
+              aside={
+                <button
+                  type="button"
+                  className="text-2xs text-ink-faint transition-colors hover:text-ink"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(casePrompt)
+                      .then(() => {
+                        setPromptCopied(true);
+                        window.setTimeout(() => setPromptCopied(false), 1600);
+                      })
+                      .catch(() => setPromptCopied(false));
+                  }}
+                >
+                  {promptCopied ? "已复制" : "复制"}
+                </button>
+              }
+            />
+            <details className="detail-panel px-3 py-2.5">
+              <summary className="cursor-pointer select-none text-2xs text-ink-soft">
+                展开条目提示词
+              </summary>
+              <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-2xs leading-relaxed text-ink-soft">
+                {casePrompt}
+              </pre>
+            </details>
           </section>
 
           <section aria-labelledby="tags-heading" className="detail-section">

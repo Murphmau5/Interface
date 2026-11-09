@@ -32,10 +32,10 @@ pub const SIGNATURE_NAME: &str = "signature.txt";
 pub const FORMAT_NAME: &str = "jiexu.content-package";
 pub const FORMAT_VERSION: u32 = 1;
 
-/// 内置发布公钥（开发签名密钥）。可用设置项 `content.trustedKeys`
+/// 内置发布公钥（V1 内容包签名密钥）。可用设置项 `content.trustedKeys`
 /// 追加自建签名公钥；内置公钥始终可信。
 pub const DEFAULT_PUBLIC_KEY_HEX: &str =
-    "bf819af15c112a03770acf427766aca24899096f4b6113a9bc2e4b6e4add39bc";
+    "460886f55c6a1c4ef9560ec0f57b4c3c0b4ec88dd8418faa621d2bc3969d4909";
 pub const TRUSTED_KEYS_SETTING: &str = "content.trustedKeys";
 pub const FEED_URL_SETTING: &str = "content.feedUrl";
 
@@ -50,6 +50,7 @@ pub const MAX_HTML_EMBED_BYTES: usize = 256 * 1024;
 const MAX_REPORT_ITEMS: usize = 500;
 const MAX_TAG_CHARS: usize = 40;
 const MAX_TAGS: usize = 20;
+const MAX_CATEGORIES: usize = 200;
 
 const BLOCKED_EXTENSIONS: [&str; 26] = [
     "exe", "dll", "sys", "scr", "com", "bat", "cmd", "ps1", "psm1", "vbs", "vbe", "js", "mjs",
@@ -91,6 +92,9 @@ pub struct Manifest {
     pub version: String,
     pub min_app_version: String,
     pub created_at: String,
+    /// 包自带类目词表：只补缺，不覆盖既有类目标签。
+    #[serde(default)]
+    pub categories: Vec<ManifestCategory>,
     #[serde(default)]
     pub items: Vec<ManifestItem>,
     /// 增量包显式声明移除的条目；缺省不等于移除，避免一次漏打包清空用户库。
@@ -112,6 +116,9 @@ pub struct ManifestItem {
     pub confidence: String,
     #[serde(default)]
     pub platform: String,
+    /// 必须在本包 `categories` 内声明；缺省表示不归类。
+    #[serde(default)]
+    pub category_id: Option<String>,
     pub version: String,
     pub path: String,
     /// 可选 HTML 文件路径；读入后按白名单清洗，再嵌入 payload.html。
@@ -119,6 +126,18 @@ pub struct ManifestItem {
     pub html_path: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestCategory {
+    pub id: String,
+    /// 必须属于风格 / 主题 / 组件 / 动效 / 反馈之一。
+    pub domain: String,
+    pub group_label: String,
+    pub label: String,
+    #[serde(default)]
+    pub sort_order: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -555,6 +574,52 @@ pub fn load_package(
         }
     }
 
+    if manifest.categories.len() > MAX_CATEGORIES {
+        return Err(pkg_err(
+            "E_PKG_TOO_LARGE",
+            format!("类目数 {}，超过 {} 上限", manifest.categories.len(), MAX_CATEGORIES),
+        ));
+    }
+    let mut declared_categories: HashMap<&str, ()> = HashMap::new();
+    for category in &manifest.categories {
+        validate_slug(&category.id, "类目 id")?;
+        if !CASE_KINDS.contains(&category.domain.as_str()) {
+            return Err(pkg_err(
+                "E_PKG_MANIFEST",
+                format!("类目 {} 的 domain 非法：{}", category.id, category.domain),
+            ));
+        }
+        if !(0..=9999).contains(&category.sort_order) {
+            return Err(pkg_err(
+                "E_PKG_MANIFEST",
+                format!("类目 {} 的 sortOrder 必须在 0–9999", category.id),
+            ));
+        }
+        if category.label.trim().is_empty() || category.label.chars().count() > MAX_TAG_CHARS {
+            return Err(pkg_err(
+                "E_PKG_MANIFEST",
+                format!("类目 {} 的 label 不能为空且不能超过 {MAX_TAG_CHARS} 字符", category.id),
+            ));
+        }
+        if category.group_label.trim().is_empty()
+            || category.group_label.chars().count() > MAX_TAG_CHARS
+        {
+            return Err(pkg_err(
+                "E_PKG_MANIFEST",
+                format!(
+                    "类目 {} 的 groupLabel 不能为空且不能超过 {MAX_TAG_CHARS} 字符",
+                    category.id
+                ),
+            ));
+        }
+        if declared_categories.insert(category.id.as_str(), ()).is_some() {
+            return Err(pkg_err(
+                "E_PKG_MANIFEST",
+                format!("类目 id 重复：{}", category.id),
+            ));
+        }
+    }
+
     let mut seen_items: HashMap<&str, ()> = HashMap::new();
     for item in &manifest.items {
         validate_slug(&item.id, "条目 id")?;
@@ -563,6 +628,14 @@ pub fn load_package(
                 "E_PKG_MANIFEST",
                 format!("条目 id 重复：{}", item.id),
             ));
+        }
+        if let Some(category_id) = &item.category_id {
+            if !declared_categories.contains_key(category_id.as_str()) {
+                return Err(pkg_err(
+                    "E_PKG_MANIFEST",
+                    format!("条目 {} 引用了未声明的类目：{category_id}", item.id),
+                ));
+            }
         }
         validate_version(&item.version, &format!("条目 {} 的 version", item.id))?;
         validate_entry_name(&item.path)?;
@@ -599,6 +672,7 @@ struct PreparedItem {
     confidence: String,
     platform: String,
     payload_json: String,
+    category_id: Option<String>,
     version: String,
     tags: Vec<String>,
     hash: String,
@@ -611,6 +685,7 @@ fn item_hash(
     payload_json: &str,
     confidence: &str,
     platform: &str,
+    category_id: Option<&str>,
 ) -> String {
     let value = serde_json::json!({
         "kind": kind,
@@ -619,6 +694,7 @@ fn item_hash(
         "payload": payload_json,
         "confidence": confidence,
         "platform": platform,
+        "category": category_id,
     });
     sha256_hex(value.to_string().as_bytes())
 }
@@ -722,7 +798,15 @@ fn prepare_items(pkg: &LoadedPackage) -> Result<Vec<PreparedItem>, AppError> {
             return Err(item_err(format!("标签不能超过 {MAX_TAGS} 个")));
         }
 
-        let hash = item_hash(&item.kind, title, summary, &payload_json, &confidence, &platform);
+        let hash = item_hash(
+            &item.kind,
+            title,
+            summary,
+            &payload_json,
+            &confidence,
+            &platform,
+            item.category_id.as_deref(),
+        );
         prepared.push(PreparedItem {
             id: item.id.clone(),
             case_id: format!("pkg:{}:{}", pkg.manifest.id, item.id),
@@ -732,6 +816,7 @@ fn prepare_items(pkg: &LoadedPackage) -> Result<Vec<PreparedItem>, AppError> {
             confidence,
             platform,
             payload_json,
+            category_id: item.category_id.clone(),
             version: item.version.clone(),
             tags,
             hash,
@@ -756,6 +841,7 @@ struct ExistingCase {
     payload_json: String,
     confidence: String,
     platform: String,
+    category_id: Option<String>,
 }
 
 impl ExistingCase {
@@ -767,6 +853,7 @@ impl ExistingCase {
             &self.payload_json,
             &self.confidence,
             &self.platform,
+            self.category_id.as_deref(),
         )
     }
 }
@@ -778,7 +865,8 @@ async fn fetch_existing(
     Ok(sqlx::query_as::<_, ExistingCase>(
         r#"
         SELECT origin_package_id, origin_version, origin_hash, deleted_at,
-               is_favorite, kind, title, summary, payload_json, confidence, platform
+               is_favorite, kind, title, summary, payload_json, confidence, platform,
+               category_id
         FROM cases
         WHERE id = ?1
         "#,
@@ -924,6 +1012,23 @@ pub async fn import_package(
     }
 
     let mut tx = pool.begin().await?;
+    // 类目词表随包补充：已存在的 id 保留原标签，避免覆盖用户或旧包的定义。
+    for category in &manifest.categories {
+        sqlx::query(
+            r#"
+            INSERT INTO categories (id, domain, group_label, label, sort_order)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(id) DO NOTHING
+            "#,
+        )
+        .bind(&category.id)
+        .bind(&category.domain)
+        .bind(category.group_label.trim())
+        .bind(category.label.trim())
+        .bind(category.sort_order)
+        .execute(&mut *tx)
+        .await?;
+    }
     sqlx::query(
         r#"
         INSERT INTO content_packages
@@ -970,7 +1075,7 @@ pub async fn import_package(
                          origin_package_id, origin_item_id, origin_version, origin_hash,
                          created_at, updated_at)
                     VALUES
-                        (?1, ?2, ?3, ?4, ?5, 2, ?6, 0, NULL, ?7, NULL, ?8, ?9, ?10, ?11,
+                        (?1, ?2, ?3, ?4, ?5, 2, ?6, 0, ?7, ?8, NULL, ?9, ?10, ?11, ?12,
                          strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                          strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
                     "#,
@@ -981,6 +1086,7 @@ pub async fn import_package(
                 .bind(&item.summary)
                 .bind(&item.payload_json)
                 .bind(&item.confidence)
+                .bind(&item.category_id)
                 .bind(&item.platform)
                 .bind(&manifest.id)
                 .bind(&item.id)
@@ -1068,8 +1174,9 @@ pub async fn import_package(
                             payload_schema_version = 2,
                             confidence = ?6,
                             platform = ?7,
-                            origin_version = ?8,
-                            origin_hash = ?9,
+                            category_id = ?8,
+                            origin_version = ?9,
+                            origin_hash = ?10,
                             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                         WHERE id = ?1
                         "#,
@@ -1081,6 +1188,7 @@ pub async fn import_package(
                     .bind(&item.payload_json)
                     .bind(&item.confidence)
                     .bind(&item.platform)
+                    .bind(&item.category_id)
                     .bind(&item.version)
                     .bind(&item.hash)
                     .execute(&mut *tx)
@@ -1176,6 +1284,38 @@ pub async fn import_package(
         items: outcomes,
         items_truncated,
     })
+}
+
+/// 安装包内置内容：只在尚未安装该包时导入一次。
+///
+/// 返回 `Ok(None)` 表示跳过（已安装过，含用户此前手动导入）。
+/// 已安装即不再走安装包，后续更新由 `content.feedUrl` 在线包负责；
+/// 用户改过的条目仍按 `import_package` 的合并规则跳过。
+pub async fn import_builtin_if_needed(
+    pool: &SqlitePool,
+    package_id: &str,
+    bytes: &[u8],
+    source_ref: Option<&str>,
+) -> Result<Option<ImportReport>, AppError> {
+    let installed: Option<String> =
+        sqlx::query_scalar("SELECT id FROM content_packages WHERE id = ?1")
+            .bind(package_id)
+            .fetch_optional(pool)
+            .await?;
+    if installed.is_some() {
+        return Ok(None);
+    }
+    let keys = resolve_trusted_keys(pool).await?;
+    let report = import_package(
+        pool,
+        bytes,
+        "builtin",
+        source_ref,
+        &keys,
+        &PackageLimits::default(),
+    )
+    .await?;
+    Ok(Some(report))
 }
 
 /* -------------------------------- 卸载 --------------------------------- */
@@ -1402,6 +1542,7 @@ pub(crate) fn fixture_package(
         version: version.into(),
         min_app_version: "1.0.0".into(),
         created_at: "2026-11-09T00:00:00Z".into(),
+        categories: Vec::new(),
         items: Vec::new(),
         removed_items: Vec::new(),
         files: Vec::new(),
@@ -1415,6 +1556,7 @@ pub(crate) fn fixture_package(
             summary: "端到端摘要".into(),
             confidence: "estimated".into(),
             platform: "web".into(),
+            category_id: None,
             version: "1.0.0".into(),
             path: format!("content/{id}.json"),
             html_path: None,
@@ -1493,6 +1635,7 @@ mod tests {
             version: version.into(),
             min_app_version: "1.0.0".into(),
             created_at: "2026-11-09T00:00:00Z".into(),
+            categories: vec![],
             items: vec![],
             removed_items: vec![],
             files: vec![],
@@ -1507,6 +1650,7 @@ mod tests {
             summary: "测试摘要".into(),
             confidence: "estimated".into(),
             platform: "web".into(),
+            category_id: None,
             version: version.into(),
             path: format!("content/{id}.json"),
             html_path: None,
@@ -1948,6 +2092,134 @@ mod tests {
 
         let packages = list_packages(&pool).await.expect("列出内容包");
         assert!(packages.is_empty(), "卸载后不应残留内容包记录");
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn imports_package_categories_and_binds_cases() {
+        let (pool, dir) = test_pool().await;
+        let (_, public) = test_key();
+        let limits = PackageLimits::default();
+
+        let mut manifest = base_manifest("1.0.0");
+        manifest.categories.push(ManifestCategory {
+            id: "style.family.material".into(),
+            domain: "style".into(),
+            group_label: "家族归属".into(),
+            label: "材质系".into(),
+            sort_order: 10,
+        });
+        let mut item = manifest_item("glass", "1.0.0");
+        item.category_id = Some("style.family.material".into());
+        manifest.items.push(item);
+        let payloads = vec![("content/glass.json".to_string(), payload("玻璃"))];
+        let manifest = prepare_manifest(manifest, &payloads);
+        let package = build_package(&manifest, &payloads);
+
+        let report = import_package(&pool, &package, "local", None, &[public], &limits)
+            .await
+            .expect("带类目的包应导入成功");
+        assert_eq!(report.stats.created, 1);
+
+        let category: Option<String> =
+            sqlx::query_scalar("SELECT category_id FROM cases WHERE id = 'pkg:demo.pack:glass'")
+                .fetch_one(&pool)
+                .await
+                .expect("读案例类目");
+        assert_eq!(category.as_deref(), Some("style.family.material"));
+
+        let label: String =
+            sqlx::query_scalar("SELECT label FROM categories WHERE id = 'style.family.material'")
+                .fetch_one(&pool)
+                .await
+                .expect("读类目");
+        assert_eq!(label, "材质系");
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn rejects_undeclared_category_and_invalid_domain() {
+        let (pool, dir) = test_pool().await;
+        let (_, public) = test_key();
+        let limits = PackageLimits::default();
+
+        let mut manifest = base_manifest("1.0.0");
+        let mut item = manifest_item("glass", "1.0.0");
+        item.category_id = Some("style.missing".into());
+        manifest.items.push(item);
+        let payloads = vec![("content/glass.json".to_string(), payload("玻璃"))];
+        let manifest = prepare_manifest(manifest, &payloads);
+        let package = build_package(&manifest, &payloads);
+        let err = import_package(&pool, &package, "local", None, &[public.clone()], &limits)
+            .await
+            .expect_err("未声明类目应拒绝");
+        assert_eq!(code(&err), "E_PKG_MANIFEST", "{err:?}");
+
+        let mut manifest = base_manifest("1.0.0");
+        manifest.categories.push(ManifestCategory {
+            id: "bad.category".into(),
+            domain: "layout".into(),
+            group_label: "家族归属".into(),
+            label: "布局".into(),
+            sort_order: 10,
+        });
+        let payloads = vec![("content/glass.json".to_string(), payload("玻璃"))];
+        let manifest = prepare_manifest(manifest, &payloads);
+        let package = build_package(&manifest, &payloads);
+        let err = import_package(&pool, &package, "local", None, &[public], &limits)
+            .await
+            .expect_err("非法 domain 应拒绝");
+        assert_eq!(code(&err), "E_PKG_MANIFEST", "{err:?}");
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn builtin_import_runs_once_and_skips_installed_package() {
+        let (pool, dir) = test_pool().await;
+        let (_, public) = test_key();
+        sqlx::query("INSERT INTO settings (key, value) VALUES (?1, ?2)")
+            .bind(TRUSTED_KEYS_SETTING)
+            .bind(crate::sha256::hex(&public))
+            .execute(&pool)
+            .await
+            .expect("写入信任公钥");
+
+        let mut manifest = base_manifest("1.0.0");
+        manifest.items.push(manifest_item("one", "1.0.0"));
+        let payloads = vec![("content/one.json".to_string(), payload("一"))];
+        let manifest = prepare_manifest(manifest, &payloads);
+        let package = build_package(&manifest, &payloads);
+
+        let first = import_builtin_if_needed(&pool, "demo.pack", &package, Some("builtin:test"))
+            .await
+            .expect("首次导入")
+            .expect("首次应导入");
+        assert_eq!(first.stats.created, 1);
+
+        let second = import_builtin_if_needed(&pool, "demo.pack", &package, Some("builtin:test"))
+            .await
+            .expect("二次调用");
+        assert!(second.is_none(), "已安装后应跳过");
+
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM cases WHERE origin_package_id = 'demo.pack'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("统计条目");
+        assert_eq!(total, 1, "重复导入不应产生重复条目");
+        let source: String =
+            sqlx::query_scalar("SELECT source FROM content_packages WHERE id = 'demo.pack'")
+                .fetch_one(&pool)
+                .await
+                .expect("读取包记录");
+        assert_eq!(source, "builtin");
 
         drop(pool);
         let _ = std::fs::remove_dir_all(dir);

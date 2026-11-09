@@ -105,6 +105,51 @@ function LoadingScene() {
   );
 }
 
+function EasingScene() {
+  return (
+    <div className="pv-easing">
+      {["linear", "自定义贝塞尔"].map((label, index) => (
+        <div key={label} className="pv-easing-track-wrap">
+          <span className="pv-easing-label">{label}</span>
+          <span className="pv-easing-track">
+            <span
+              className="pv-easing-knob"
+              data-pv-curve={index === 0 ? "linear" : "bezier"}
+              data-tone={index === 0 ? "muted" : "accent"}
+              aria-hidden
+            />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReducedScene() {
+  return (
+    <div className="pv-reduced">
+      <span className="pv-reduced-label">常规</span>
+      <div className="pv-rows">
+        {ROWS.slice(0, 3).map((index) => (
+          <div key={`motion-${index}`} data-pv-motion-row className="pv-row">
+            <span className="pv-row-dot" aria-hidden />
+            <span className="pv-row-bar" data-width="long" aria-hidden />
+          </div>
+        ))}
+      </div>
+      <span className="pv-reduced-label">减弱动效</span>
+      <div className="pv-rows" data-reduced>
+        {ROWS.slice(0, 3).map((index) => (
+          <div key={`reduced-${index}`} data-pv-reduced-row className="pv-row">
+            <span className="pv-row-dot" aria-hidden />
+            <span className="pv-row-bar" data-width="long" aria-hidden />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MotionRenderer({ spec, playing, loop, revision }: RendererProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const motion = spec as MotionSpec;
@@ -288,6 +333,44 @@ export function MotionRenderer({ spec, playing, loop, revision }: RendererProps)
           }
           return plans;
         }
+        case "easing": {
+          const knobs = Array.from(root.querySelectorAll<HTMLElement>("[data-pv-curve]"));
+          const travel = Math.max(120, motion.distance * 10);
+          return knobs.map((knob, index) => ({
+            element: knob,
+            keyframes: [
+              { transform: "translate3d(0, 0, 0)", offset: 0 },
+              { transform: `translate3d(${travel}px, 0, 0)`, offset: 1 },
+            ],
+            options: {
+              duration: motion.durationMs,
+              easing: index === 0 ? "linear" : motion.easing,
+              delay: motion.delayMs,
+            },
+          }));
+        }
+        case "reduced": {
+          const motionRows = Array.from(root.querySelectorAll<HTMLElement>("[data-pv-motion-row]"));
+          const reducedRows = Array.from(root.querySelectorAll<HTMLElement>("[data-pv-reduced-row]"));
+          return [
+            ...motionRows.map((row, index) => ({
+              element: row,
+              keyframes: [
+                {
+                  opacity: motion.opacity,
+                  transform: `translate3d(0, ${motion.distance}px, 0) scale(${motion.scale})`,
+                },
+                { opacity: 1, transform: "translate3d(0, 0, 0) scale(1)" },
+              ],
+              options: { ...base, delay: motion.delayMs + index * motion.staggerMs },
+            })),
+            ...reducedRows.map((row, index) => ({
+              element: row,
+              keyframes: [{ opacity: motion.opacity }, { opacity: 1 }],
+              options: { duration: 120, easing: "linear", delay: motion.delayMs + index * 20 },
+            })),
+          ];
+        }
       }
     },
     [motion],
@@ -304,6 +387,8 @@ export function MotionRenderer({ spec, playing, loop, revision }: RendererProps)
       {motion.scene === "spring" ? <SpringScene /> : null}
       {motion.scene === "parallax" ? <ParallaxScene /> : null}
       {motion.scene === "loading" ? <LoadingScene /> : null}
+      {motion.scene === "easing" ? <EasingScene /> : null}
+      {motion.scene === "reduced" ? <ReducedScene /> : null}
     </div>
   );
 }

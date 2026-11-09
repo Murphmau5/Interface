@@ -72,6 +72,7 @@ export interface CatalogCategory {
   id: string;
   label: string;
   count: number;
+  note?: string;
 }
 
 export interface CatalogGroup {
