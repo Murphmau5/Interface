@@ -54,6 +54,7 @@ $script:DbPath = Join-Path $script:DataDir 'app.db'
 $script:Results = [System.Collections.Generic.List[object]]::new()
 $script:AppProcess = $null
 $script:BackupDir = ""
+$script:ExplorerHwnd = [IntPtr]::Zero
 
 function Log([string]$message) {
   Write-Host ("[acceptance] " + $message) -ForegroundColor Cyan
@@ -143,6 +144,15 @@ function Stop-AppWindow([IntPtr]$hwnd) {
   if (-not $script:AppProcess.WaitForExit(15000)) {
     Stop-Process -Id $script:AppProcess.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 800
+  }
+}
+
+# 关闭拖拽用例自己打开的 Explorer 窗口，只关脚本记下的那个句柄，不碰用户已有窗口
+function Close-AcceptanceExplorer {
+  if ($script:ExplorerHwnd -and $script:ExplorerHwnd -ne [IntPtr]::Zero) {
+    [Jx.Win]::SendClose($script:ExplorerHwnd)
+    Start-Sleep -Milliseconds 400
+    $script:ExplorerHwnd = [IntPtr]::Zero
   }
 }
 
@@ -535,6 +545,13 @@ function Test-DragDropImage([IntPtr]$hwnd) {
       if ($candidate) { $candidate } else { $null }
     }
     if (-not $explorerWindow) { throw "找不到标题为 $folderName 的 Explorer 窗口" }
+    $script:ExplorerHwnd = [IntPtr]$explorerWindow.Current.NativeWindowHandle
+
+    # 把 Explorer 挪到左半屏：默认位置可能正好被应用窗口盖住，拖拽起点就会落在应用上
+    $leftWidth = [int]($area.Width / 2) - 60
+    [Jx.Win]::Place($script:ExplorerHwnd, ($area.Left + 20), ($area.Top + 40), $leftWidth, [int]($area.Height * 0.8))
+    [Microsoft.VisualBasic.Interaction]::AppActivate($explorerWindow.Current.ProcessId) | Out-Null
+    Start-Sleep -Milliseconds 800
 
     $nameCondition = New-Object System.Windows.Automation.PropertyCondition(
       [System.Windows.Automation.AutomationElement]::NameProperty, 'drop-target.png')
@@ -550,13 +567,12 @@ function Test-DragDropImage([IntPtr]$hwnd) {
       X = [int]($rect.X + $rect.Width / 2)
       Y = [int]($rect.Y + $rect.Height / 2)
     }
-    [Microsoft.VisualBasic.Interaction]::AppActivate($explorerWindow.Current.ProcessId) | Out-Null
-    Start-Sleep -Milliseconds 500
   } catch {
     $uiaError = "$($_.Exception.Message)"
   }
 
   if (-not $iconRect) {
+    Close-AcceptanceExplorer
     Add-Result 'drag-drop-image' '拖一张图片进窗口导入' 'BLOCKED' @{
       fixture = $png
       uiaError = $uiaError
@@ -575,6 +591,7 @@ function Test-DragDropImage([IntPtr]$hwnd) {
     $rows = Invoke-Db "select id, original_name, mime, byte_size from assets where original_name = 'drop-target.png'"
     if ($rows.Count -gt $before) { $rows } else { $null }
   }
+  Close-AcceptanceExplorer
 
   Add-Result 'drag-drop-image' '拖一张图片进窗口导入' ($(if ($after) { 'PASS' } else { 'FAIL' })) @{
     fixture = $png
@@ -658,6 +675,7 @@ try {
 } catch {
   Add-Result 'fatal' '验收主流程' 'BLOCKED' @{ error = "$($_.Exception.Message)" } '见上方输出'
 } finally {
+  Close-AcceptanceExplorer
   Stop-AppWindow $appHwnd
   Start-Sleep -Milliseconds 800
   # 测试数据整体丢弃，原始数据目录原样还回
