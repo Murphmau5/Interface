@@ -7,6 +7,7 @@ import {
   LayoutPanelLeft,
   Monitor,
   Moon,
+  PackageOpen,
   Palette,
   RefreshCw,
   RotateCcw,
@@ -22,6 +23,7 @@ import { Input } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
 import { AiSettingsSection } from "@/features/settings/AiSection";
+import { ContentPackagesSection } from "@/features/settings/ContentPackagesSection";
 import { useAppInfo, useSetSetting, useSettings } from "@/features/settings/api";
 import { DEFAULT_LAYOUT, SETTINGS_KEYS } from "@/lib/constants";
 import { LICENSE_ENTRIES, LICENSE_POLICY } from "@/lib/licenses";
@@ -33,7 +35,14 @@ const THEME_OPTIONS = [
   { value: "light", label: "浅色", icon: <Sun size={12} strokeWidth={1.8} aria-hidden /> },
 ] as const;
 
-type SettingsSectionId = "appearance" | "ai" | "layout" | "storage" | "backup" | "about";
+type SettingsSectionId =
+  | "appearance"
+  | "ai"
+  | "layout"
+  | "content"
+  | "storage"
+  | "backup"
+  | "about";
 
 interface SettingsSection {
   id: SettingsSectionId;
@@ -85,6 +94,14 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
     id: "data",
     label: "数据",
     sections: [
+      {
+        id: "content",
+        label: "内容包",
+        title: "内容包",
+        description: "签名 zip 内容包：本地导入即装，在线地址可选；更新按版本合并，卸载不伤自建数据。",
+        icon: PackageOpen,
+        keywords: ["内容包", "素材包", "导入", "在线", "更新", "卸载", "签名", "zip", "manifest", "哈希"],
+      },
       {
         id: "storage",
         label: "存储与数据库",
@@ -306,6 +323,8 @@ export function SettingsView() {
         );
       case "ai":
         return <AiSettingsSection />;
+      case "content":
+        return <ContentPackagesSection />;
       case "layout":
         return (
           <>

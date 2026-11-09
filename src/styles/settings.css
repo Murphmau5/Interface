@@ -356,3 +356,72 @@
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
 }
+
+/* 内容包：拖拽区、安装列表与错误态 */
+
+.settings-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  margin: var(--space-2) var(--settings-row-pad-x) 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  color: var(--text-tertiary);
+  font-size: var(--type-caption-size);
+  text-align: center;
+}
+
+.settings-readout.is-error {
+  border-color: var(--status-danger);
+  color: var(--status-danger);
+}
+
+.settings-package-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-package-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--settings-row-pad-x);
+  border-top: 1px solid var(--border);
+}
+
+.settings-package-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-package-name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--type-row-size);
+  font-weight: var(--type-row-weight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-package-meta {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--type-caption-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-footnote-inline {
+  margin: var(--space-2) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}

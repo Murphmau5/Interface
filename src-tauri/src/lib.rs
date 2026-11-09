@@ -1,6 +1,7 @@
 mod ai;
 mod commands;
 mod config;
+mod content_pkg;
 mod db;
 mod error;
 mod fetch;
@@ -61,6 +62,10 @@ fn dispatch(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
             commands::ai::ai_config_export,
             commands::discovery::discovery_fetch_url,
             commands::discovery::discovery_search,
+            commands::content::content_packages_list,
+            commands::content::content_package_import,
+            commands::content::content_package_install_url,
+            commands::content::content_package_uninstall,
             commands::system::app_info,
         ]
     }

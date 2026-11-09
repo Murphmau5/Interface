@@ -1,6 +1,6 @@
 [package]
 name = "jiexu-interface"
-version = "1.0.6"
+version = "1.0.7"
 description = "界序 INTERFACE — 双主题 UI 动效仪器台"
 authors = ["界序 INTERFACE contributors"]
 edition = "2021"
@@ -44,6 +44,10 @@ windows-sys = { version = "0.61", features = [
 ] }
 # 抓取链路做域名解析守卫（DNS → 内网 IP 一律拒绝）
 tokio = { version = "1", features = ["net"] }
+# 内容包：zip 解包只启用 deflate，其余压缩算法一律不接
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+# 内容包签名：Ed25519 校验复用 rustls 已带入的 ring，不额外引入曲线库
+ring = "0.17"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

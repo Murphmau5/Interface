@@ -121,6 +121,131 @@ mod tests {
         spawn_server(expected, "text/html; charset=utf-8", body)
     }
 
+    /// 返回二进制响应（内容包下载用）。
+    fn spawn_binary_server(
+        body: Vec<u8>,
+        content_type: &str,
+    ) -> (String, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("绑定本地假服务器");
+        let address = listener.local_addr().expect("读取本地端口");
+        let content_type = content_type.to_string();
+        let handle = thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+            let _ = read_request(&mut stream);
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(&body);
+        });
+        (format!("http://{address}/content-package.zip"), handle)
+    }
+
+    #[tokio::test]
+    #[cfg(windows)]
+    async fn content_package_local_and_online_install_uninstall() {
+        use crate::content_pkg::{self, PackageLimits, TRUSTED_KEYS_SETTING};
+
+        let data_dir = std::env::temp_dir().join(format!("jiexu-pkg-e2e-{}", Uuid::new_v4()));
+        let pool = crate::db::connect(&data_dir).await.expect("创建测试数据库");
+
+        let seed = [0x51u8; 32];
+        let public_key = content_pkg::fixture_public_key(&seed);
+        sqlx::query(
+            "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        )
+        .bind(TRUSTED_KEYS_SETTING)
+        .bind(crate::sha256::hex(&public_key))
+        .execute(&pool)
+        .await
+        .expect("写入测试信任公钥");
+
+        let keys = content_pkg::resolve_trusted_keys(&pool)
+            .await
+            .expect("解析信任公钥");
+        assert!(keys.contains(&public_key), "设置里的公钥应参与校验");
+
+        // 本地导入：真实落盘再读回，覆盖「没有服务器也能装」
+        let first = content_pkg::fixture_package(&seed, "e2e.pack", "1.0.0", &[("a", "标题 A")]);
+        let file = data_dir.join("e2e.pack.zip");
+        std::fs::write(&file, &first).expect("写出测试内容包");
+        let bytes = std::fs::read(&file).expect("读回测试内容包");
+        let report = content_pkg::import_package(
+            &pool,
+            &bytes,
+            "local",
+            file.to_str(),
+            &keys,
+            &PackageLimits::default(),
+        )
+        .await
+        .expect("本地导入");
+        assert_eq!(report.stats.created, 1);
+
+        // 在线安装：本地假服务器提供增量包，走下载 → 校验 → 合并
+        let second = content_pkg::fixture_package(&seed, "e2e.pack", "1.1.0", &[("a", "标题 A2")]);
+        let (url, server) = spawn_binary_server(second, "application/zip");
+        let downloaded = content_pkg::download_package(&url, true, &PackageLimits::default())
+            .await
+            .expect("下载内容包");
+        let report = content_pkg::import_package(
+            &pool,
+            &downloaded,
+            "online",
+            Some(&url),
+            &keys,
+            &PackageLimits::default(),
+        )
+        .await
+        .expect("在线导入");
+        assert_eq!(report.stats.updated, 1);
+        server.join().expect("等待下载服务器");
+
+        let title: String = sqlx::query_scalar("SELECT title FROM cases WHERE id = 'pkg:e2e.pack:a'")
+            .fetch_one(&pool)
+            .await
+            .expect("读取合并后的条目");
+        assert_eq!(title, "标题 A2");
+
+        // 用户自建案例，卸载时不能动
+        sqlx::query(
+            "INSERT INTO cases (id, kind, title, summary, payload_json, confidence, created_at, updated_at) \
+             VALUES ('user-own', 'style', '自建', '', '{}', 'user_defined', \
+             strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        )
+        .execute(&pool)
+        .await
+        .expect("写入用户自建案例");
+
+        let report = content_pkg::uninstall_package(&pool, "e2e.pack")
+            .await
+            .expect("卸载内容包");
+        assert_eq!(report.removed, 1);
+
+        let left: Vec<String> = sqlx::query_scalar("SELECT id FROM cases ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .expect("读取剩余案例");
+        assert!(
+            !left.contains(&"pkg:e2e.pack:a".to_string()),
+            "内容包条目应被移除"
+        );
+        assert!(left.contains(&"user-own".to_string()), "用户自建案例应保留");
+        assert!(left.len() > 1, "内置示例数据不应被卸载影响");
+
+        let packages = content_pkg::list_packages(&pool)
+            .await
+            .expect("列出内容包");
+        assert!(packages.is_empty());
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
     #[tokio::test]
     #[cfg(windows)]
     async fn full_ai_chain_and_fetch_dedupe() {

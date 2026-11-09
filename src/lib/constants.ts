@@ -105,6 +105,8 @@ export const SETTINGS_KEYS = {
   note: "lab.note",
   aiDraft: "lab.ai.draft",
   discoveryQuery: "lab.discovery.query",
+  contentFeedUrl: "content.feedUrl",
+  contentTrustedKeys: "content.trustedKeys",
 } as const;
 
 export const PANEL_LIMITS = {

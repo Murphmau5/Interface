@@ -293,6 +293,52 @@ export class IpcError extends Error {
   }
 }
 
+export interface InstalledContentPackage {
+  id: string;
+  name: string;
+  version: string;
+  source: string;
+  sourceRef: string | null;
+  minAppVersion: string;
+  manifestSha256: string;
+  itemCount: number;
+  installedAt: string;
+  updatedAt: string;
+}
+
+export interface ContentPackageStats {
+  created: number;
+  updated: number;
+  unchanged: number;
+  skippedModified: number;
+  skippedDeleted: number;
+  skippedUserData: number;
+  removed: number;
+  keptModified: number;
+  keptFavorite: number;
+}
+
+export interface ContentPackageItemOutcome {
+  itemId: string;
+  caseId: string;
+  outcome: string;
+  version: string;
+}
+
+export interface ContentPackageImportReport {
+  package: InstalledContentPackage;
+  stats: ContentPackageStats;
+  items: ContentPackageItemOutcome[];
+  itemsTruncated: boolean;
+}
+
+export interface ContentPackageUninstallReport {
+  packageId: string;
+  removed: number;
+  keptModified: number;
+  keptFavorite: number;
+}
+
 function isEnvelope(value: unknown): value is AppErrorEnvelope {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -384,4 +430,13 @@ export const ipc = {
 
   catalogList: () => call<CatalogDomain[]>("catalog_list"),
   appInfo: () => call<AppInfo>("app_info"),
+
+  contentPackagesList: () =>
+    call<InstalledContentPackage[]>("content_packages_list"),
+  contentPackageImport: (path: string) =>
+    call<ContentPackageImportReport>("content_package_import", { path }),
+  contentPackageInstallUrl: (url?: string) =>
+    call<ContentPackageImportReport>("content_package_install_url", { url }),
+  contentPackageUninstall: (packageId: string) =>
+    call<ContentPackageUninstallReport>("content_package_uninstall", { packageId }),
 };

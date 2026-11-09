@@ -95,3 +95,45 @@ export function useAiConfigExport() {
     mutationFn: () => ipc.aiConfigExport(),
   });
 }
+
+export const contentPackagesQueryKey = ["contentPackages"] as const;
+
+export function useContentPackages() {
+  return useQuery({
+    queryKey: contentPackagesQueryKey,
+    queryFn: ipc.contentPackagesList,
+    retry: 1,
+  });
+}
+
+/** 内容包会增删案例，导入/卸载后统一刷新案例、标签与统计。 */
+function invalidateContentData(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.invalidateQueries({ queryKey: contentPackagesQueryKey });
+  void queryClient.invalidateQueries({ queryKey: ["cases"] });
+  void queryClient.invalidateQueries({ queryKey: ["tags"] });
+  void queryClient.invalidateQueries({ queryKey: ["collections"] });
+}
+
+export function useContentPackageImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (path: string) => ipc.contentPackageImport(path),
+    onSuccess: () => invalidateContentData(queryClient),
+  });
+}
+
+export function useContentPackageInstallUrl() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (url?: string) => ipc.contentPackageInstallUrl(url),
+    onSuccess: () => invalidateContentData(queryClient),
+  });
+}
+
+export function useContentPackageUninstall() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (packageId: string) => ipc.contentPackageUninstall(packageId),
+    onSuccess: () => invalidateContentData(queryClient),
+  });
+}

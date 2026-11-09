@@ -2,6 +2,34 @@
 
 > 面向用户与维护者的变更摘要；详细过程见 `PROJECT_LOG.md`。
 
+## [1.0.7] — 2026-11-09
+
+内容包与在线更新：签名 zip + manifest、本地导入、可配置在线地址、版本合并、用户改动保护与干净卸载。
+
+### Added
+
+- 内容包格式：`manifest.json` + `signature.txt` + `content/...`；manifest 含格式版本、包 id / 名称 / 版本、`minAppVersion`、条目清单、逐文件 SHA-256 与增量 `removedItems`。
+- Ed25519 签名校验：内置发布公钥，支持设置项 `content.trustedKeys` 追加自建公钥；签名不符整包拒绝。
+- 本地导入：拖拽 `.zip` 或填写路径导入，不依赖在线服务、Key 或账号。
+- 在线地址：设置项 `content.feedUrl`，支持显式 URL 安装；下载走 http/https 白名单、逐跳重定向校验与体积上限。
+- 安全校验：zip 条目名拒绝 `..` / 绝对路径 / 盘符 / 反斜杠，拒绝可执行扩展名，校验条数、解压总量、单文件大小与压缩比。
+- 包内 HTML 使用与素材导入相同的清洗器；原始 HTML 不入库，清洗结果嵌入 `payload.html`。
+- 合并策略：按版本比较；用户改过不覆盖；用户删过不复活；仅显式 `removedItems` 移除条目；拒绝降级。
+- 卸载：移除未改动条目；改过或收藏的条目保留并解除绑定；用户自建数据不受影响。
+- 设置页新增「内容包」：本地导入、在线地址保存与安装、已安装列表、两步确认卸载与可读错误。
+- 新增错误域 `AppError::ContentPackage`，错误码 `E_PKG_INVALID_ZIP`、`E_PKG_MANIFEST`、`E_PKG_SIGNATURE`、`E_PKG_MISSING`、`E_PKG_HASH`、`E_PKG_PATH`、`E_PKG_EXECUTABLE`、`E_PKG_TOO_LARGE`、`E_PKG_VERSION`、`E_PKG_ITEM`、`E_PKG_DOWNLOAD`。
+
+### Changed
+
+- 版本号同步至 1.0.7（`package.json` / `tauri.conf.json` / `Cargo.toml` / `Cargo.lock`）。
+
+### Known Issues
+
+- 无真实公网内容包分发服务器；在线安装仅在本地假 HTTP 服务器上验证，未用真实 CDN 跳转演练。
+- 内置签名公钥为开发签名密钥，私钥保存在本地 `.agent/keys`，未做发布级密钥管理。
+- 安装包未签名，首次运行可能出现 SmartScreen 提示。
+- 仅提供 Windows x64；macOS 未验证。
+
 ## [1.0.6] — 2026-11-09
 
 联网抓取链路：单 URL 抓取入候选池、URL 守卫与逐跳重定向校验、正文提取与近似去重；搜索采集支持 Tavily / Brave / Bing / custom 四种服务。

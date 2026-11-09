@@ -26,6 +26,9 @@ pub enum AppError {
     /// 联网抓取 / 搜索失败，code 见 fetch.rs 错误表
     #[error("{message}")]
     Fetch { code: String, message: String },
+    /// 内容包校验 / 合并 / 卸载失败，code 以 E_PKG_ 开头
+    #[error("{message}")]
+    ContentPackage { code: String, message: String },
 }
 
 impl Serialize for AppError {
@@ -79,6 +82,11 @@ impl Serialize for AppError {
                     "E_FETCH_TIMEOUT" | "E_NETWORK" | "E_HTTP_STATUS" | "E_RATE_LIMIT" | "E_PROVIDER_DOWN"
                 );
                 map.serialize_entry("retryable", &retryable)?;
+            }
+            AppError::ContentPackage { code, message } => {
+                map.serialize_entry("code", code)?;
+                map.serialize_entry("message", message)?;
+                map.serialize_entry("retryable", &(code == "E_PKG_DOWNLOAD"))?;
             }
         }
         map.end()

@@ -1,8 +1,8 @@
 # 界序 INTERFACE
 
-**v1.0.6 · 联网抓取链路** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版打通联网采集：粘贴公开网址即可抓取正文入候选池，带 URL 守卫、正文提取与近似去重，搜索采集支持 Tavily / Brave / Bing / custom 四种服务。
+**v1.0.7 · 内容包与在线更新** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版加入签名内容包：本地导入即可安装，在线地址可选；更新按版本合并，用户改过或删过的条目不会被覆盖与复活，卸载不伤自建数据。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.6) → `INTERFACE_1.0.6_x64-setup.exe`（7.30 MiB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.7) → `INTERFACE_1.0.7_x64-setup.exe`（7.47 MiB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
@@ -31,14 +31,14 @@
 
 | 项 | 状态 |
 |---|---|
-| 版本 | **v1.0.6（联网抓取链路）** |
-| 阶段 | Phase 2 收口完成；本版打通联网抓取与搜索采集链路 |
+| 版本 | **v1.0.7（内容包与在线更新）** |
+| 阶段 | Phase 2 收口完成；本版加入内容包安装、版本合并与干净卸载 |
 | 安装包 | **已发布**（NSIS，Windows x64，未签名），见 GitHub Releases |
 | 文档 | 治理七件套 + A–J 十份启动文档 + 架构自检，已就绪 |
 | 代码 | 工程脚手架已通过安装 / 启动 / 卸载实测；功能项按验收逐条转 ✅ |
-| 发布渠道 | GitHub Releases `v1.0.6` |
+| 发布渠道 | GitHub Releases `v1.0.7` |
 
-> 本版重点：粘贴公开 http/https 网址即可抓取正文写入候选池待审核；URL 守卫只放行 http/https，拒绝带用户名密码、本机 / 内网 / 链路本地 / 保留地址与内部域名，重定向逐跳校验最多 5 跳，单页响应上限 2 MB，只接受 `text/html`、`application/xhtml+xml`、`text/plain`；正文剥离 script / style / noscript / 注释 / SVG 后取 title、meta description 与正文；同一规范化 URL 与内容近似（二元组 Jaccard ≥ 0.85）均判重；抓到的 HTML 一律 `unclean` 入库、只存 ≤ 16 KB 摘要、不执行不渲染；失败逐条返回可读错误码。AI 工作台分析与搜索采集需自备 Key，粘贴网址抓取与本地浏览不配 Key 也能用。真实第三方搜索 Provider 与真实模型服务端到端未验证。
+> 本版重点：签名 zip 内容包（`manifest.json` + `signature.txt` + `content/...`）本地导入即可安装，不依赖 Key 或在线服务；在线地址通过设置项 `content.feedUrl` 配置，未配置也不影响本地导入。manifest、逐文件 SHA-256、Ed25519 签名、`..` 目录穿越、可执行扩展名、体积与压缩比均在写入前校验，失败整包拒绝并给出可读原因。同 id 条目按版本合并，用户改过不覆盖、删过不复活；卸载只移除未改动条目，改过或收藏的条目保留并解除绑定。真实公网内容包分发服务器未验证，内置公钥为开发签名密钥。
 
 ## 功能清单
 
@@ -51,6 +51,7 @@
 - 🧭 底部类型条带：按类型横切，与左栏共用同一筛选状态
 - ✅ 网格视图 + 表格清单视图，支持排序与四维筛选（类型 / 平台 / 置信度 / 组件层）
 - ✅ 收藏、最近使用、标签、合集（收藏与最近作为视图位于左栏底部）
+- ✅ 内容包：签名 zip 本地导入即装，在线地址可选；版本合并、用户改动保护、干净卸载
 - 🧭 置信度标记与证据链接
 
 ### 预览
@@ -100,15 +101,15 @@
 
 ## 安装方式（Windows）
 
-1. 从 [GitHub Releases v1.0.6](https://github.com/Murphmau5/Interface/releases/tag/v1.0.6) 下载 `INTERFACE_1.0.6_x64-setup.exe`（7.30 MiB / 7,651,062 字节）。本地构建产物的原名是 `界序 INTERFACE_1.0.6_x64-setup.exe`，上传时附件名改为 ASCII 名，内容一致。
+1. 从 [GitHub Releases v1.0.7](https://github.com/Murphmau5/Interface/releases/tag/v1.0.7) 下载 `INTERFACE_1.0.7_x64-setup.exe`（7.47 MiB / 7,831,631 字节）。本地构建产物的原名是 `界序 INTERFACE_1.0.7_x64-setup.exe`，上传时附件名改为 ASCII 名，内容一致。
 2. 核对 SHA-256：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.6_x64-setup.exe"
-# c3e4f2075d3e6a8dd54ec6544c21d4109635a321f6f867a0742d0e84f729ddc7
+Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.7_x64-setup.exe"
+# 07d9689ec4360639d46faefe8821cb24879fe856559106774e0da03daca20f01
 ```
 
-3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。**已装 1.0.0 / 1.0.2 / 1.0.3 / 1.0.4 / 1.0.5 的用户直接双击即可覆盖升级，不需要先手动卸载。**
+3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。**已装 1.0.0 / 1.0.2 / 1.0.3 / 1.0.4 / 1.0.5 / 1.0.6 的用户直接双击即可覆盖升级，不需要先手动卸载。**
 4. 首次启动读取系统主题，默认「跟随系统」。
 
 **未签名提示**：本安装包未做代码签名，首次运行可能触发 Windows SmartScreen（「Windows 已保护你的电脑」）。确认 SHA-256 与上表一致后，可选择「更多信息 → 仍要运行」。校验和一致即可确认文件未被篡改。
