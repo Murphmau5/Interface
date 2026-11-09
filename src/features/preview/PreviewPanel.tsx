@@ -1,9 +1,6 @@
 import { useState } from "react";
-import { Play, RotateCcw, Square } from "lucide-react";
+import { Pause, Play, Repeat, RotateCcw } from "lucide-react";
 
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Switch } from "@/components/ui/Switch";
 import { ParamPanel } from "@/features/preview/ParamPanel";
 import { PreviewStage } from "@/features/preview/PreviewStage";
 import { describePreview, PREVIEW_KIND_LABELS, type PreviewSpec } from "@/lib/preview";
@@ -43,17 +40,53 @@ export function PreviewPanel({ spec, onChange }: PreviewPanelProps) {
   };
 
   return (
-    <div className="flex flex-col gap-2.5">
-      <Card className="relative overflow-hidden bg-sunken">
-        <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
-          <span className="font-mono text-2xs tracking-[0.12em] text-ink-faint">
-            PREVIEW / {PREVIEW_KIND_LABELS[spec.kind]}
+    <div className="flex flex-col gap-3">
+      <div className="stage-shell">
+        <div className="stage-toolbar">
+          <button
+            type="button"
+            className="stage-tool"
+            data-on={playing}
+            aria-label={playing ? "暂停预览" : "播放预览"}
+            aria-pressed={playing}
+            onClick={togglePlay}
+          >
+            {playing ? (
+              <Pause size={12} strokeWidth={2} aria-hidden />
+            ) : (
+              <Play size={12} strokeWidth={2} aria-hidden />
+            )}
+          </button>
+          <button
+            type="button"
+            className="stage-tool"
+            aria-label="重播预览"
+            onClick={replay}
+          >
+            <RotateCcw size={12} strokeWidth={2} aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="stage-tool"
+            data-on={loop && !reducedMotion}
+            aria-label="循环播放"
+            aria-pressed={loop && !reducedMotion}
+            disabled={reducedMotion}
+            onClick={() => setLoop((value) => !value)}
+          >
+            <Repeat size={12} strokeWidth={2} aria-hidden />
+          </button>
+
+          <span aria-hidden className="mx-1 h-3 w-px bg-line" />
+          <span className="truncate font-mono text-2xs tracking-[0.12em] text-ink-faint">
+            {PREVIEW_KIND_LABELS[spec.kind]}
           </span>
-          <span className="font-mono text-2xs text-ink-faint">
+          <span className="ml-auto font-mono text-2xs text-ink-faint">
             {playing ? (loop && !reducedMotion ? "LOOP" : "PLAYING") : "PAUSED"}
           </span>
         </div>
-        <div className="relative h-56">
+
+        <div className="relative" style={{ height: "var(--stage-height)" }}>
           <PreviewStage
             spec={spec}
             playing={playing}
@@ -62,49 +95,22 @@ export function PreviewPanel({ spec, onChange }: PreviewPanelProps) {
             interactive
           />
         </div>
-      </Card>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant={playing ? "secondary" : "primary"}
-          icon={playing ? <Square size={12} strokeWidth={2} /> : <Play size={12} strokeWidth={2} />}
-          onClick={togglePlay}
-        >
-          {playing ? "停止" : "播放"}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon={<RotateCcw size={12} strokeWidth={2} />}
-          onClick={replay}
-        >
-          重播
-        </Button>
-        <span className="ml-auto min-w-0 truncate font-mono text-2xs text-ink-faint">
-          {describePreview(spec)}
-        </span>
+        <div className="stage-status">
+          <span className="min-w-0 truncate">{describePreview(spec)}</span>
+          <span className="ml-auto shrink-0">
+            {reducedMotion ? "减少动效" : loop ? "循环" : "单次"}
+          </span>
+        </div>
       </div>
 
-      <Switch
-        checked={loop && !reducedMotion}
-        disabled={reducedMotion}
-        onChange={setLoop}
-        label="循环播放"
-        description={
-          reducedMotion
-            ? "已开启「减少动效」：预览只播放一次，不循环。"
-            : "循环仅作用于右栏完整预览；悬停微预览始终自动播放。"
-        }
-      />
-
-      <Card className="px-4 py-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="detail-panel px-3 py-2.5">
+        <div className="mb-1.5 flex items-center justify-between gap-2">
           <span className="label-eyebrow">参数</span>
-          <span className="font-mono text-2xs text-ink-faint">改值即时生效 · 无需应用</span>
+          <span className="font-mono text-2xs text-ink-faint">改值即时生效</span>
         </div>
         <ParamPanel spec={spec} onChange={updateAndReplay} />
-      </Card>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, LayoutGrid, List, RotateCcw, Search } from "lucide-react";
+import { Layers, LayoutGrid, List, Plus, RotateCcw, Search, X } from "lucide-react";
 
 import { PanelLayout } from "@/components/layout/PanelLayout";
 import { Button } from "@/components/ui/Button";
@@ -169,6 +169,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   const [searchDraft, setSearchDraft] = useState(filters.search);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
   const [queryDraft, setQueryDraft] = useState("");
@@ -200,6 +201,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     setSearchDraft("");
     setFilter("search", "");
     setSelectedId(id);
+    setCreating(false);
   };
 
   const captureKind: CaseKind = props.scope === "kind" ? props.kind : "style";
@@ -287,39 +289,60 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   const middle = (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b border-line px-5 pb-4 pt-5">
-        <div className="label-eyebrow">{eyebrow}</div>
-        <div className="mt-1.5 flex items-center gap-2">
-          <h1 className="text-display font-semibold tracking-tight text-ink">{title}</h1>
-          <span
-            title="总数来自 SQL COUNT"
-            className="rounded-pill border border-line px-2 py-0.5 font-mono text-2xs text-ink-faint"
-          >
-            {total}
-          </span>
+      <header className="shrink-0 border-b border-line px-4 pb-3 pt-3.5">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="label-eyebrow">{eyebrow}</div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-ink">{title}</h1>
+              <span title="总数来自 SQL COUNT" className="rail-count ml-0">
+                {total}
+              </span>
+            </div>
+            <p className="mt-0.5 line-clamp-2 text-2xs leading-normal text-ink-faint">
+              {collection
+                ? "合集是视图，不是分类；条目仍保留原本的内容域与类目。"
+                : copy.description}
+            </p>
+          </div>
+          {props.scope === "kind" ? (
+            creating ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<X size={13} strokeWidth={1.8} aria-hidden />}
+                onClick={() => setCreating(false)}
+              >
+                取消
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                icon={<Plus size={13} strokeWidth={1.8} aria-hidden />}
+                onClick={() => setCreating(true)}
+              >
+                新建
+              </Button>
+            )
+          ) : null}
         </div>
-        <p className="mt-1 text-meta leading-normal text-ink-faint">
-          {collection
-            ? "合集是视图，不是分类；条目仍保留原本的内容域与类目。"
-            : copy.description}
-        </p>
 
         {sectionKey && selectedCategory ? (
-          <nav aria-label="类目路径" className="mt-2 flex flex-wrap items-center gap-1.5 text-2xs">
+          <nav aria-label="类目路径" className="mt-2 flex flex-wrap items-center gap-1.5">
             <button
               type="button"
               onClick={() => clearCategory(sectionKey)}
-              className="rounded-xs px-1 py-0.5 text-ink-soft transition-colors duration-[var(--motion-fast)] hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+              className="chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
             >
               {CASE_KIND_LABELS[props.scope === "kind" ? props.kind : "style"]}
             </button>
-            <span aria-hidden className="text-ink-faint">
+            <span aria-hidden className="text-2xs text-ink-faint">
               ›
             </span>
-            <span className="rounded-xs border border-accent-line bg-accent-soft px-1.5 py-0.5 text-ink">
-              {sectionKey && selectedCategory ? "类目视图" : "类目"}
+            <span className="chip" data-tone="accent">
+              类目视图
             </span>
-            <span className="ml-1 text-ink-faint">Esc 先清类目，再按一次返回域</span>
+            <span className="ml-auto text-2xs text-ink-faint">Esc 先清类目</span>
           </nav>
         ) : null}
 
@@ -327,29 +350,30 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           <button
             type="button"
             onClick={() => setActiveCollection(null)}
-            className="mt-2 inline-flex items-center gap-1 rounded-xs px-1 py-0.5 text-2xs text-ink-soft transition-colors hover:bg-surface hover:text-ink"
+            className="chip mt-2 transition-colors hover:border-line-strong hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
           >
             退出合集视图
           </button>
         ) : null}
 
-        <div className="mt-3.5 flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <Input
-              aria-label="搜索案例"
-              value={searchDraft}
-              placeholder="搜标题 / 摘要 / 拼音，2 字即可命中"
-              onChange={(event) => setSearchDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.ctrlKey && event.key === "Enter") {
-                  event.preventDefault();
-                  setOnlineMessage(null);
-                  setFilter("scope", "online");
-                }
-              }}
-              trailing={<Search size={13} strokeWidth={1.8} aria-hidden />}
-            />
-          </div>
+        <div className="mt-2.5">
+          <Input
+            aria-label="搜索案例"
+            value={searchDraft}
+            placeholder="搜标题 / 摘要 / 拼音，2 字即可命中"
+            onChange={(event) => setSearchDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.ctrlKey && event.key === "Enter") {
+                event.preventDefault();
+                setOnlineMessage(null);
+                setFilter("scope", "online");
+              }
+            }}
+            trailing={<Search size={13} strokeWidth={1.8} aria-hidden />}
+          />
+        </div>
+
+        <div className="mt-1.5 flex items-center gap-1.5">
           <SegmentedControl
             label="搜索作用域"
             options={SCOPE_OPTIONS}
@@ -359,6 +383,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               setFilter("scope", value);
             }}
           />
+          <span className="ml-auto" />
           <SegmentedControl
             label="列表视图"
             options={VIEW_OPTIONS}
@@ -368,9 +393,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         </div>
 
         {filters.scope === "online" ? (
-          <div className="mt-2 rounded-sm border border-line bg-sunken px-3 py-2.5 text-xs">
+          <div className="detail-inset mt-2 px-2.5 py-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-ink">联网作用域</span>
+              <span className="text-2xs font-medium text-ink">联网作用域</span>
               <button
                 type="button"
                 onClick={() => {
@@ -382,7 +407,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 回到本地
               </button>
             </div>
-            <form onSubmit={handleUrlSubmit} className="mt-2 flex items-center gap-2">
+            <form onSubmit={handleUrlSubmit} className="mt-1.5 flex items-center gap-1.5">
               <div className="min-w-0 flex-1">
                 <Input
                   aria-label="粘贴网址"
@@ -392,14 +417,14 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 />
               </div>
               <Button size="sm" type="submit" disabled={discoveryFetchUrl.isPending}>
-                {discoveryFetchUrl.isPending ? "抓取中…" : "抓取并登记"}
+                {discoveryFetchUrl.isPending ? "抓取中…" : "抓取"}
               </Button>
             </form>
-            <p className="mt-1 leading-normal text-ink-faint">
-              粘贴网址即可抓取公开 http/https 页面，不需要任何 Key；内网与本机地址会被拒绝。
+            <p className="mt-1 leading-normal text-2xs text-ink-faint">
+              粘贴公开 http/https 网址即可抓取，不需要 Key；内网与本机地址会被拒绝。
             </p>
             {searchConfigured ? (
-              <form onSubmit={handleSearchSubmit} className="mt-2 flex items-center gap-2">
+              <form onSubmit={handleSearchSubmit} className="mt-1.5 flex items-center gap-1.5">
                 <div className="min-w-0 flex-1">
                   <Input
                     aria-label="检索关键词"
@@ -409,11 +434,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                   />
                 </div>
                 <Button size="sm" type="submit" disabled={discoverySearch.isPending}>
-                  {discoverySearch.isPending ? "检索中…" : "检索并采集"}
+                  {discoverySearch.isPending ? "检索中…" : "检索"}
                 </Button>
               </form>
             ) : (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-2xs leading-normal text-ink-faint">
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-2xs leading-normal text-ink-faint">
                 <span>搜索服务未配置（需要 Key）</span>
                 <Button size="sm" variant="ghost" onClick={() => navigate("/settings")}>
                   去设置
@@ -421,67 +446,61 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               </div>
             )}
             {onlineMessage ? (
-              <p className="mt-1.5 leading-normal text-ink-soft">{onlineMessage}</p>
+              <p className="mt-1.5 leading-normal text-2xs text-ink-soft">{onlineMessage}</p>
             ) : null}
           </div>
         ) : null}
 
-        <div className="mt-2.5 grid grid-cols-2 gap-2">
+        <div className="mt-1.5 grid grid-cols-3 gap-1.5">
           {props.scope !== "kind" ? (
             <Select
               aria-label="按类型筛选"
+              className="filter-select w-full"
               options={kindOptions}
               value={filters.kind}
               onChange={(event) => setFilter("kind", event.target.value)}
             />
-          ) : (
-            <Select
-              aria-label="按置信度筛选"
-              options={confidenceOptions}
-              value={filters.confidence}
-              onChange={(event) => setFilter("confidence", event.target.value)}
-            />
-          )}
+          ) : null}
           <Select
             aria-label="按平台筛选"
+            className="filter-select w-full"
             options={platformOptions}
             value={filters.platform}
             onChange={(event) => setFilter("platform", event.target.value)}
           />
-          {props.scope !== "kind" ? (
-            <Select
-              aria-label="按置信度筛选"
-              options={confidenceOptions}
-              value={filters.confidence}
-              onChange={(event) => setFilter("confidence", event.target.value)}
-            />
-          ) : null}
+          <Select
+            aria-label="按置信度筛选"
+            className="filter-select w-full"
+            options={confidenceOptions}
+            value={filters.confidence}
+            onChange={(event) => setFilter("confidence", event.target.value)}
+          />
           <Select
             aria-label="按组件层筛选"
+            className="filter-select w-full"
             options={layerOptions}
             value={filters.layer}
             onChange={(event) => setFilter("layer", event.target.value)}
           />
           <Select
             aria-label="排序"
+            className="filter-select w-full"
             options={[...SORT_OPTIONS]}
             value={filters.sort}
-            onChange={(event) =>
-              setFilter("sort", event.target.value as typeof filters.sort)
-            }
+            onChange={(event) => setFilter("sort", event.target.value as typeof filters.sort)}
           />
           {filtersActive ? (
             <Button
               size="sm"
               variant="ghost"
-              className="justify-start"
+              className="h-8 text-2xs"
+              icon={<RotateCcw size={12} strokeWidth={1.8} aria-hidden />}
               onClick={() => {
                 resetFilters();
                 setSearchDraft("");
               }}
             >
-              <RotateCcw size={12} strokeWidth={1.8} aria-hidden />
-              重置筛选
+              重置
             </Button>
           ) : null}
         </div>
@@ -490,13 +509,14 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       <div
         id="content-list"
         tabIndex={-1}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 focus-visible:outline-none"
+        className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-3 focus-visible:outline-none"
       >
-        {props.scope === "kind" ? (
+        {props.scope === "kind" && creating ? (
           <CreateCaseForm
             kind={props.kind}
             categoryId={selectedCategory}
             onCreated={handleCreated}
+            onCancel={() => setCreating(false)}
           />
         ) : null}
 
@@ -530,7 +550,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
           />
         ) : null}
 
-        {!casesQuery.isPending && !casesQuery.isError && total === 0 ? (
+        {!casesQuery.isPending && !casesQuery.isError && total === 0 && !creating ? (
           <EmptyState
             compact
             title={filters.search.trim() ? "没有匹配的案例" : "这里还没有案例"}
@@ -538,9 +558,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               filters.search.trim()
                 ? "换一个关键词，或试试拼音全拼 / 首字母。"
                 : selectedCategory
-                  ? "该类目还没有案例，用上方表单新建一条即可自动归类。"
+                  ? "该类目还没有案例，点右上角「新建」写第一条并自动归类。"
                   : props.scope === "kind"
-                    ? "用上方表单写入第一条案例，数据会落到本地 SQLite。"
+                    ? "点右上角「新建」写入第一条案例，数据会落到本地 SQLite。"
                     : "先去内容域创建案例并收藏，再回到这里查看。"
             }
             action={
@@ -569,12 +589,6 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
             onSelect={setSelectedId}
             onToggleFavorite={handleToggleFavorite}
           />
-        ) : null}
-
-        {!casesQuery.isPending && !casesQuery.isError && total > 0 ? (
-          <p className="px-1 pt-1 font-mono text-2xs text-ink-faint">
-            SQL · 命中 {total} 条 · 当前渲染 {items.length} 条
-          </p>
         ) : null}
       </div>
     </div>

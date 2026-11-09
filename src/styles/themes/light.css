@@ -32,6 +32,12 @@
   --theme-grid-line: rgba(18, 38, 54, 0.05);
   --theme-scrim: rgba(28, 44, 58, 0.3);
 
+  /* 仪器台：面板高光、控件底、选中环 */
+  --theme-panel-highlight: rgba(255, 255, 255, 0.78);
+  --theme-control-bg: #ffffff;
+  --theme-control-line: rgba(18, 38, 54, 0.13);
+  --theme-rail-active-ring: rgba(14, 122, 138, 0.24);
+
   /* 自绘标题栏与可点击行 */
   --theme-titlebar-bg: #f5f8fa;
   --theme-titlebar-border: rgba(18, 38, 54, 0.1);

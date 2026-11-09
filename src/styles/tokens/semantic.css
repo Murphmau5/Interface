@@ -41,6 +41,23 @@
   --titlebar-close-hover-ink: var(--theme-titlebar-close-hover-ink);
   --row-hover-bg: var(--theme-row-hover-bg);
 
+  /* 仪器台：面板高光、控件底与描边、选中环 */
+  --panel-highlight: var(--theme-panel-highlight);
+  --control-bg: var(--theme-control-bg);
+  --control-line: var(--theme-control-line);
+  --rail-active-ring: var(--theme-rail-active-ring);
+
+  /* 主界面尺寸：固定仪器台密度，组件只引用不写死 */
+  --rail-item-height: 34px;
+  --rail-item-sm-height: 28px;
+  --rail-count-height: 18px;
+  --rail-count-min: 20px;
+  --list-gap: 10px;
+  --list-card-body: 62px;
+  --stage-height: 232px;
+  --detail-gutter: 16px;
+  --detail-section-gap: 20px;
+
   /* 预览示例的双主题样品色：组件只能引用这层，不直接写色值 */
   --demo-dark-bg: var(--theme-demo-dark-bg);
   --demo-dark-surface: var(--theme-demo-dark-surface);
@@ -123,8 +140,8 @@
   --switch-travel: 16px;
 
   /* 自绘标题栏尺寸 */
-  --titlebar-height: 40px;
-  --titlebar-button-width: 46px;
+  --titlebar-height: 38px;
+  --titlebar-button-width: 44px;
 
   /* Motion */
   --motion-fast: 120ms;

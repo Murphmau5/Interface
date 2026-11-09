@@ -110,11 +110,11 @@ export const SETTINGS_KEYS = {
 } as const;
 
 export const PANEL_LIMITS = {
-  left: { min: 196, max: 320 },
-  middle: { min: 300, max: 560 },
+  left: { min: 208, max: 320 },
+  middle: { min: 320, max: 600 },
 } as const;
 
 export const DEFAULT_LAYOUT = {
-  leftWidth: 228,
-  middleWidth: 384,
+  leftWidth: 236,
+  middleWidth: 400,
 } as const;

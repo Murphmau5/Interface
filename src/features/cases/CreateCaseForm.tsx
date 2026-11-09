@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -18,9 +18,10 @@ interface CreateCaseFormProps {
   /** 当前左栏选中的类目，新建时默认带上 */
   categoryId?: string | null;
   onCreated: (id: string) => void;
+  onCancel?: () => void;
 }
 
-export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormProps) {
+export function CreateCaseForm({ kind, categoryId, onCreated, onCancel }: CreateCaseFormProps) {
   const [title, setTitle] = useState("");
   const [confidence, setConfidence] = useState("unknown");
   const [platform, setPlatform] = useState("web");
@@ -78,17 +79,25 @@ export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormPr
   };
 
   return (
-    <form
-      onSubmit={submit}
-      className="rounded-md border border-line bg-raised p-3 shadow-ambient"
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <span className="label-eyebrow">新建「{CASE_KIND_LABELS[kind]}」案例</span>
-        <span className="font-mono text-2xs text-ink-faint">cases · SQLite</span>
+    <form onSubmit={submit} className="detail-panel p-2.5 shadow-ambient">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="label-eyebrow">新建 · {CASE_KIND_LABELS[kind]}</span>
+        <span className="font-mono text-2xs text-ink-faint">cases / SQLite</span>
+        {onCancel ? (
+          <button
+            type="button"
+            aria-label="取消新建"
+            onClick={onCancel}
+            className="ml-auto flex h-5 w-5 items-center justify-center rounded-xs text-ink-faint transition-colors hover:bg-sunken hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+          >
+            <X size={12} strokeWidth={1.8} aria-hidden />
+          </button>
+        ) : null}
       </div>
 
       <Input
         aria-label="案例标题"
+        className="h-8"
         value={title}
         maxLength={120}
         placeholder="给这条案例一个可检索的名字"
@@ -98,34 +107,28 @@ export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormPr
         }}
       />
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <div className="min-w-0">
-          <Select
-            aria-label="所属类目"
-            label="类目"
-            options={categoryOptions}
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-          />
-        </div>
-        <div className="min-w-0">
-          <Select
-            aria-label="置信度"
-            label="置信度"
-            options={CONFIDENCE_OPTIONS.map((option) => ({
-              value: option.value,
-              label: option.label,
-            }))}
-            value={confidence}
-            onChange={(event) => setConfidence(event.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="mt-2">
+      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+        <Select
+          aria-label="所属类目"
+          className="filter-select w-full"
+          wrapperClassName="col-span-2"
+          options={categoryOptions}
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+        />
+        <Select
+          aria-label="置信度"
+          className="filter-select w-full"
+          options={CONFIDENCE_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
+          value={confidence}
+          onChange={(event) => setConfidence(event.target.value)}
+        />
         <Select
           aria-label="平台"
-          label="平台"
+          className="filter-select w-full"
           options={PLATFORM_OPTIONS.map((option) => ({
             value: option.value,
             label: option.label,
@@ -133,13 +136,11 @@ export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormPr
           value={platform}
           onChange={(event) => setPlatform(event.target.value)}
         />
-      </div>
-
-      <div className="mt-2 flex justify-end">
         <Button
           type="submit"
-          variant="primary"
-          icon={<Plus size={13} strokeWidth={2} />}
+          size="sm"
+          className="col-span-2"
+          icon={<Plus size={13} strokeWidth={2} aria-hidden />}
           disabled={createCase.isPending || !title.trim()}
         >
           {createCase.isPending ? "写入中" : "添加"}
@@ -147,7 +148,7 @@ export function CreateCaseForm({ kind, categoryId, onCreated }: CreateCaseFormPr
       </div>
 
       {error ? (
-        <p role="alert" className="mt-2 text-xs leading-normal text-danger">
+        <p role="alert" className="mt-1.5 text-2xs leading-normal text-danger">
           {error}
         </p>
       ) : null}

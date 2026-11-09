@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, X } from "lucide-react";
 
+import { NAV_SECTIONS } from "@/lib/navigation";
+
 const isTauriRuntime = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+const EXTRA_ROUTE_LABELS: Record<string, string> = {
+  "/favorites": "收藏",
+  "/recent": "最近使用",
+  "/settings": "设置",
+};
+
+function currentViewLabel(pathname: string): string {
+  if (EXTRA_ROUTE_LABELS[pathname]) return EXTRA_ROUTE_LABELS[pathname];
+  const section = Object.values(NAV_SECTIONS).find((entry) => entry.route === pathname);
+  return section?.label ?? "案例库";
+}
 
 function MaximizeGlyph({ restored }: { restored: boolean }) {
   if (restored) {
@@ -21,8 +36,10 @@ function MaximizeGlyph({ restored }: { restored: boolean }) {
   );
 }
 
-export function TitleBar() {
+export function TitleBar({ railWidth }: { railWidth: number }) {
   const [maximized, setMaximized] = useState(false);
+  const location = useLocation();
+  const viewLabel = currentViewLabel(location.pathname);
 
   useEffect(() => {
     if (!isTauriRuntime) return;
@@ -73,9 +90,14 @@ export function TitleBar() {
 
   return (
     <header className="titlebar" data-tauri-drag-region="deep">
-      <div className="titlebar-brand">
+      <div className="titlebar-brand" style={{ width: railWidth }}>
         <span className="titlebar-mark" aria-hidden />
         <span className="titlebar-title">界序 INTERFACE</span>
+      </div>
+
+      <div className="titlebar-context" aria-hidden>
+        <span className="titlebar-context-label">当前视图</span>
+        <span className="titlebar-context-value">{viewLabel}</span>
       </div>
 
       <div className="titlebar-actions">

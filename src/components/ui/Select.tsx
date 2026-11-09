@@ -13,14 +13,24 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   hint?: ReactNode;
   options: SelectOption[];
+  /** 外层容器类名：用于 flex/grid 布局，避免宽度只作用在 select 上 */
+  wrapperClassName?: string;
 }
 
-export function Select({ label, hint, options, className, id, ...rest }: SelectProps) {
+export function Select({
+  label,
+  hint,
+  options,
+  className,
+  wrapperClassName,
+  id,
+  ...rest
+}: SelectProps) {
   const generatedId = useId();
   const selectId = id ?? generatedId;
 
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className={cn("flex min-w-0 flex-col gap-1.5", wrapperClassName)}>
       {label ? (
         <label htmlFor={selectId} className="text-meta font-medium text-ink-soft">
           {label}

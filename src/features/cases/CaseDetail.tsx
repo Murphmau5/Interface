@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Download, Eye, Star, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ChevronDown, Download, Eye, Pencil, Star, Trash2, X } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import {
@@ -57,9 +56,31 @@ function normalizeKind(kind: string): PreviewKind {
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-line py-2 last:border-b-0">
-      <dt className="shrink-0 text-meta text-ink-faint">{label}</dt>
-      <dd className="min-w-0 truncate text-right font-mono text-meta text-ink-soft">{value}</dd>
+    <div className="property-row">
+      <dt className="property-key">{label}</dt>
+      <dd className="property-value" title={value}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function SectionHead({
+  id,
+  title,
+  aside,
+}: {
+  id: string;
+  title: string;
+  aside?: ReactNode;
+}) {
+  return (
+    <div className="detail-section-head">
+      <span id={id} className="label-eyebrow">
+        {title}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-line" />
+      {aside}
     </div>
   );
 }
@@ -201,18 +222,45 @@ function AssetSection({ caseId }: { caseId: string }) {
   }, [caseId]);
 
   const rows: AssetRecord[] = assets.data ?? [];
+  const [open, setOpen] = useState(false);
+  const headingId = `assets-heading-${caseId}`;
 
   return (
-    <Card className="px-4 py-3">
-      <div
-        className="rounded-sm border border-dashed border-line-strong bg-sunken px-3 py-3 text-center"
-        aria-label="拖拽文件到窗口以导入素材"
+    <section aria-labelledby={headingId} className="detail-section">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={`${headingId}-body`}
+        onClick={() => setOpen((value) => !value)}
+        className="detail-section-head w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
       >
-        <p className="text-sm font-medium text-ink">拖文件到窗口即可导入</p>
-        <p className="mt-1 text-xs leading-normal text-ink-faint">
-          按 sha256 内容寻址存储，同一文件只存一份；单文件上限 32 MB。HTML 入库即按白名单清洗，清洗失败的条目不会进入预览。
-        </p>
-      </div>
+        <span id={headingId} className="label-eyebrow">
+          素材
+        </span>
+        <span className="rail-count ml-0">{rows.length}</span>
+        <span aria-hidden className="h-px flex-1 bg-line" />
+        <span className="inline-flex items-center gap-1 text-2xs text-ink-faint">
+          {open ? "收起" : "展开"}
+          <ChevronDown
+            size={12}
+            strokeWidth={1.8}
+            aria-hidden
+            className={cn("transition-transform duration-[var(--motion-fast)]", open && "rotate-180")}
+          />
+        </span>
+      </button>
+
+      {open ? (
+        <div id={`${headingId}-body`} className="detail-panel px-3 py-3">
+          <div
+            className="detail-inset px-3 py-2.5 text-center"
+            aria-label="拖拽文件到窗口以导入素材"
+          >
+            <p className="text-2xs font-medium text-ink">拖文件到窗口即可导入</p>
+            <p className="mt-0.5 text-2xs leading-relaxed text-ink-faint">
+              sha256 内容寻址 · 单文件上限 32 MB · HTML 入库即按白名单清洗
+            </p>
+          </div>
 
       {status ? (
         <p
@@ -277,7 +325,9 @@ function AssetSection({ caseId }: { caseId: string }) {
       ) : (
         <p className="mt-2 text-2xs text-ink-faint">这条案例还没有素材。</p>
       )}
-    </Card>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -288,6 +338,7 @@ export function CaseDetail({
   onDeleted,
 }: CaseDetailProps) {
   const [draftTitle, setDraftTitle] = useState(item.title);
+  const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -435,7 +486,10 @@ export function CaseDetail({
     renameCase.mutate(
       { id: item.id, title: trimmed },
       {
-        onSuccess: () => setRenameError(null),
+        onSuccess: () => {
+          setRenameError(null);
+          setRenaming(false);
+        },
         onError: (error) => setRenameError(error.message),
       },
     );
@@ -461,20 +515,95 @@ export function CaseDetail({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b border-line px-6 py-5">
-        <div className="label-eyebrow">DETAIL / 案例详情</div>
-        <div className="mt-2 flex items-start gap-3">
-          <h2 className="min-w-0 flex-1 text-xl font-semibold leading-tight tracking-tight text-ink">
-            {item.title}
-          </h2>
+      <header className="shrink-0 border-b border-line px-4 py-3">
+        <div className="label-eyebrow">DETAIL / 案例</div>
+        <div className="mt-1 flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            {renaming ? (
+              <form onSubmit={submitRename} className="flex items-center gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <Input
+                    aria-label="案例标题"
+                    className="h-8"
+                    value={draftTitle}
+                    maxLength={120}
+                    onChange={(event) => {
+                      setDraftTitle(event.target.value);
+                      if (renameError) setRenameError(null);
+                    }}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={
+                    renameCase.isPending ||
+                    !draftTitle.trim() ||
+                    draftTitle.trim() === item.title
+                  }
+                >
+                  {renameCase.isPending ? "保存中" : "保存"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setRenaming(false);
+                    setDraftTitle(item.title);
+                    setRenameError(null);
+                  }}
+                >
+                  取消
+                </Button>
+              </form>
+            ) : (
+              <div className="flex items-start gap-1.5">
+                <h2 className="min-w-0 flex-1 text-lg font-semibold leading-snug tracking-tight text-ink">
+                  {item.title}
+                </h2>
+                <button
+                  type="button"
+                  aria-label="重命名案例"
+                  title="重命名"
+                  onClick={() => setRenaming(true)}
+                  className="stage-tool mt-0.5 shrink-0"
+                >
+                  <Pencil size={12} strokeWidth={1.9} aria-hidden />
+                </button>
+              </div>
+            )}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+              <span className="chip">{kindLabel}</span>
+              <span className="chip">{platformLabel}</span>
+              <span className="chip">
+                <span className="confidence-dot" data-tone={item.confidence} />
+                {confidenceLabel}
+              </span>
+              {categoryLabel ? (
+                <span className="chip" data-tone="accent">
+                  {categoryLabel}
+                </span>
+              ) : null}
+              <span className="ml-auto font-mono text-2xs text-ink-faint">
+                #{item.id.slice(0, 8)}
+              </span>
+            </div>
+            {renameError ? (
+              <p role="alert" className="mt-1 text-2xs leading-normal text-danger">
+                {renameError}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             aria-label={item.isFavorite ? "取消收藏" : "收藏"}
             aria-pressed={item.isFavorite}
             disabled={favoriteBusy}
             onClick={() => onToggleFavorite(item.id)}
+            data-on={item.isFavorite}
             className={cn(
-              "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-line bg-raised transition-colors duration-[var(--motion-fast)] hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line disabled:opacity-40",
+              "stage-tool mt-0.5 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line",
               item.isFavorite ? "text-accent" : "text-ink-faint hover:text-ink-soft",
             )}
           >
@@ -486,65 +615,48 @@ export function CaseDetail({
             />
           </button>
         </div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <span className="rounded-xs border border-line px-1.5 py-0.5 text-2xs text-ink-soft">
-            {kindLabel}
-          </span>
-          <span className="rounded-xs border border-line px-1.5 py-0.5 text-2xs text-ink-soft">
-            {platformLabel}
-          </span>
-          <span className="rounded-xs border border-line px-1.5 py-0.5 text-2xs text-ink-soft">
-            置信度 · {confidenceLabel}
-          </span>
-          {categoryLabel ? (
-            <span className="rounded-xs border border-accent-line bg-accent-soft px-1.5 py-0.5 text-2xs text-ink">
-              类目 · {categoryLabel}
-            </span>
-          ) : null}
-          <span className="font-mono text-2xs text-ink-faint">#{item.id.slice(0, 8)}</span>
-        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-5 px-6 py-5">
-          <section aria-labelledby="preview-heading" className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <div id="preview-heading" className="label-eyebrow">
-                预览与参数
-              </div>
-              <span
-                role="status"
-                className={cn(
-                  "font-mono text-2xs",
-                  saveState === "error"
-                    ? "text-danger"
-                    : saveState === "saved"
-                      ? "text-accent"
-                      : "text-ink-faint",
-                )}
-              >
-                {saveState === "error"
-                  ? `保存失败：${saveMessage ?? "未知错误"}`
-                  : saveState === "saved" && savedAt
-                    ? `${SAVE_LABELS.saved} ${savedAt.toLocaleTimeString("zh-CN", { hour12: false })}`
-                    : SAVE_LABELS[saveState]}
-              </span>
-            </div>
+        <div className="flex flex-col gap-5 px-4 py-4">
+          <section aria-labelledby="preview-heading" className="detail-section">
+            <SectionHead
+              id="preview-heading"
+              title="预览与参数"
+              aside={
+                <span
+                  role="status"
+                  className={cn(
+                    "shrink-0 font-mono text-2xs",
+                    saveState === "error"
+                      ? "text-danger"
+                      : saveState === "saved"
+                        ? "text-accent"
+                        : "text-ink-faint",
+                  )}
+                >
+                  {saveState === "error"
+                    ? `保存失败：${saveMessage ?? "未知错误"}`
+                    : saveState === "saved" && savedAt
+                      ? `${SAVE_LABELS.saved} ${savedAt.toLocaleTimeString("zh-CN", { hour12: false })}`
+                      : SAVE_LABELS[saveState]}
+                </span>
+              }
+            />
             <PreviewPanel spec={spec} onChange={handleSpecChange} />
           </section>
 
-          <section aria-labelledby="tags-heading" className="flex flex-col gap-2">
-            <div id="tags-heading" className="label-eyebrow">
-              标签
-            </div>
-            <Card className="px-4 py-3">
+          <section aria-labelledby="tags-heading" className="detail-section">
+            <SectionHead
+              id="tags-heading"
+              title="标签"
+              aside={<span className="font-mono text-2xs text-ink-faint">{tagLabels.length}</span>}
+            />
+            <div className="detail-panel px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-1.5">
                 {tagLabels.length ? (
                   tagLabels.map((label) => (
-                    <span
-                      key={label}
-                      className="inline-flex items-center gap-1 rounded-xs border border-line bg-sunken px-1.5 py-0.5 text-2xs text-ink-soft"
-                    >
+                    <span key={label} className="chip">
                       {label}
                       <button
                         type="button"
@@ -561,7 +673,7 @@ export function CaseDetail({
                 )}
               </div>
               <form
-                className="mt-2 flex items-center gap-2"
+                className="mt-2 flex items-center gap-1.5"
                 onSubmit={(event) => {
                   event.preventDefault();
                   const label = tagDraft.trim();
@@ -576,6 +688,7 @@ export function CaseDetail({
                 <div className="min-w-0 flex-1">
                   <Input
                     aria-label="新标签"
+                    className="h-8"
                     value={tagDraft}
                     maxLength={24}
                     placeholder="输入标签后回车，例如「导航」「深色」"
@@ -586,7 +699,7 @@ export function CaseDetail({
                   />
                 </div>
                 <Button type="submit" size="sm" disabled={setTags.isPending || !tagDraft.trim()}>
-                  添加标签
+                  添加
                 </Button>
               </form>
               {tagMessage ? (
@@ -594,28 +707,26 @@ export function CaseDetail({
                   {tagMessage}
                 </p>
               ) : null}
-            </Card>
+            </div>
           </section>
 
-          <section aria-labelledby="collection-heading" className="flex flex-col gap-2">
-            <div id="collection-heading" className="label-eyebrow">
-              合集
-            </div>
-            <Card className="flex flex-wrap items-end gap-2 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <Select
-                  aria-label="选择合集"
-                  options={[
-                    { value: "", label: "选择合集" },
-                    ...(collections.data ?? []).map((entry) => ({
-                      value: entry.id,
-                      label: `${entry.name} · ${entry.count}`,
-                    })),
-                  ]}
-                  value={collectionChoice}
-                  onChange={(event) => setCollectionChoice(event.target.value)}
-                />
-              </div>
+          <section aria-labelledby="collection-heading" className="detail-section">
+            <SectionHead id="collection-heading" title="合集" />
+            <div className="detail-panel flex flex-wrap items-center gap-1.5 p-2.5">
+              <Select
+                aria-label="选择合集"
+                className="filter-select w-full"
+                wrapperClassName="min-w-0 flex-1"
+                options={[
+                  { value: "", label: "选择合集" },
+                  ...(collections.data ?? []).map((entry) => ({
+                    value: entry.id,
+                    label: `${entry.name} · ${entry.count}`,
+                  })),
+                ]}
+                value={collectionChoice}
+                onChange={(event) => setCollectionChoice(event.target.value)}
+              />
               <Button
                 size="sm"
                 disabled={!collectionChoice || addToCollection.isPending}
@@ -633,33 +744,25 @@ export function CaseDetail({
                   );
                 }}
               >
-                加入合集
+                加入
               </Button>
               {collectionMessage ? (
                 <p role="status" className="w-full text-2xs leading-normal text-ink-faint">
                   {collectionMessage}
                 </p>
               ) : null}
-            </Card>
+            </div>
           </section>
 
-          <section aria-labelledby="assets-heading" className="flex flex-col gap-2">
-            <div id="assets-heading" className="label-eyebrow">
-              素材
-            </div>
-            <AssetSection caseId={item.id} />
-          </section>
+          <AssetSection caseId={item.id} />
 
-          <section aria-labelledby="export-heading" className="flex flex-col gap-2">
-            <div id="export-heading" className="label-eyebrow">
-              导出
-            </div>
-            <Card className="flex items-start justify-between gap-4 px-4 py-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-ink">同时导出 Markdown + JSON</div>
-                <p className="text-xs leading-normal text-ink-faint">
-                  一次操作写出两份文件，文件名带版本与日期（v版本-YYYYMMDD），落到应用数据目录的
-                  exports/。
+          <section aria-labelledby="export-heading" className="detail-section">
+            <SectionHead id="export-heading" title="导出" />
+            <div className="detail-panel flex items-start gap-3 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="text-meta font-medium text-ink">Markdown + JSON</div>
+                <p className="mt-0.5 text-2xs leading-normal text-ink-faint">
+                  一次写出两份文件，落到 exports/，文件名带版本与日期（v版本-YYYYMMDD）。
                 </p>
                 {exportPaths ? (
                   <div className="mt-1 space-y-0.5">
@@ -672,7 +775,7 @@ export function CaseDetail({
                   </div>
                 ) : null}
                 {exportError ? (
-                  <p role="alert" className="mt-1 text-xs text-danger">
+                  <p role="alert" className="mt-1 text-2xs text-danger">
                     {exportError}
                   </p>
                 ) : null}
@@ -686,78 +789,50 @@ export function CaseDetail({
               >
                 {exportBundle.isPending ? "导出中" : "导出"}
               </Button>
-            </Card>
+            </div>
           </section>
 
-          <section aria-labelledby="rename-heading" className="flex flex-col gap-2">
-            <div id="rename-heading" className="label-eyebrow">
-              基础信息
-            </div>
-            <form onSubmit={submitRename} className="flex items-end gap-2">
-              <div className="min-w-0 flex-1">
-                <Input
-                  aria-label="案例标题"
-                  value={draftTitle}
-                  maxLength={120}
-                  onChange={(event) => {
-                    setDraftTitle(event.target.value);
-                    if (renameError) setRenameError(null);
-                  }}
+          <section aria-labelledby="meta-heading" className="detail-section">
+            <SectionHead id="meta-heading" title="属性" />
+            <dl className="detail-panel">
+              <MetaRow label="主域 kind" value={item.kind} />
+              <MetaRow label="类目 ID" value={item.categoryId ?? "未归类"} />
+              <MetaRow label="平台" value={platformLabel} />
+              <MetaRow label="组件层" value={item.componentLayer ?? "不适用"} />
+              <MetaRow label="置信度" value={confidenceLabel} />
+              <MetaRow label="创建时间" value={formatDateTime(item.createdAt)} />
+              <MetaRow label="更新时间" value={formatDateTime(item.updatedAt)} />
+              <MetaRow label="案例 ID" value={item.id} />
+            </dl>
+          </section>
+
+          <details className="detail-section group pb-2">
+            <summary className="detail-section-head cursor-pointer list-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line [&::-webkit-details-marker]:hidden">
+              <span className="label-eyebrow">更多操作</span>
+              <span aria-hidden className="h-px flex-1 bg-line" />
+              <span className="inline-flex items-center gap-1 text-2xs text-ink-faint">
+                删除与恢复说明
+                <ChevronDown
+                  size={12}
+                  strokeWidth={1.8}
+                  aria-hidden
+                  className="transition-transform duration-[var(--motion-fast)] group-open:rotate-180"
                 />
-              </div>
-              <Button
-                type="submit"
-                disabled={
-                  renameCase.isPending ||
-                  !draftTitle.trim() ||
-                  draftTitle.trim() === item.title
-                }
-              >
-                {renameCase.isPending ? "保存中" : "保存标题"}
-              </Button>
-            </form>
-            {renameError ? (
-              <p role="alert" className="text-xs text-danger">
-                {renameError}
-              </p>
-            ) : null}
-          </section>
-
-          <section aria-labelledby="meta-heading" className="flex flex-col gap-2">
-            <div id="meta-heading" className="label-eyebrow">
-              元数据
-            </div>
-            <Card className="px-4">
-              <dl className="divide-y-0">
-                <MetaRow label="主域 kind" value={item.kind} />
-                <MetaRow label="类目 ID" value={item.categoryId ?? "未归类"} />
-                <MetaRow label="平台" value={platformLabel} />
-                <MetaRow label="组件层" value={item.componentLayer ?? "不适用"} />
-                <MetaRow label="置信度" value={confidenceLabel} />
-                <MetaRow label="创建时间" value={formatDateTime(item.createdAt)} />
-                <MetaRow label="更新时间" value={formatDateTime(item.updatedAt)} />
-                <MetaRow label="案例 ID" value={item.id} />
-              </dl>
-            </Card>
-          </section>
-
-          <section aria-labelledby="danger-heading" className="flex flex-col gap-2 pb-2">
-            <div id="danger-heading" className="label-eyebrow">
-              危险操作
-            </div>
-            <Card className="flex items-center justify-between gap-4 border-danger/25 px-4 py-3">
+              </span>
+            </summary>
+            <div className="detail-panel flex items-center justify-between gap-3 border-danger/25 px-3 py-2.5">
               <div className="min-w-0">
-                <div className="text-sm font-medium text-ink">软删除这条案例</div>
-                <p className="text-xs leading-normal text-ink-faint">
+                <div className="text-meta font-medium text-ink">软删除这条案例</div>
+                <p className="mt-0.5 text-2xs leading-normal text-ink-faint">
                   写入 deleted_at，默认列表不再显示；回收站与恢复入口尚未实现。
                 </p>
                 {deleteError ? (
-                  <p role="alert" className="mt-1 text-xs text-danger">
+                  <p role="alert" className="mt-1 text-2xs text-danger">
                     {deleteError}
                   </p>
                 ) : null}
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-1.5">
                 {confirming ? (
                   <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
                     取消
@@ -773,8 +848,8 @@ export function CaseDetail({
                   {confirming ? "确认删除" : "删除"}
                 </Button>
               </div>
-            </Card>
-          </section>
+            </div>
+          </details>
         </div>
       </div>
     </div>

@@ -30,7 +30,6 @@ import {
   TOOL_SECTION_KEYS,
   type NavSectionKey,
 } from "@/lib/navigation";
-import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
 
 const SECTION_ICONS: Record<NavSectionKey, LucideIcon> = {
@@ -69,27 +68,15 @@ function SectionButton({
       type="button"
       onClick={() => onOpen(sectionKey)}
       aria-current={active ? "page" : undefined}
-      className={cn(
-        "group relative flex h-8 w-full items-center gap-2.5 rounded-sm px-2.5 text-left text-sm transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line",
-        active ? "bg-accent-soft text-ink" : "text-ink-soft hover:bg-surface hover:text-ink",
-      )}
+      data-active={active}
+      className="rail-item focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
     >
-      {active ? (
-        <span aria-hidden className="absolute left-0 top-1/2 h-4 w-px -translate-y-1/2 rounded-pill bg-accent" />
-      ) : null}
-      <Icon
-        aria-hidden
-        size={15}
-        strokeWidth={1.7}
-        className={active ? "text-accent" : "text-ink-faint group-hover:text-ink-soft"}
-      />
+      <Icon aria-hidden size={15} strokeWidth={1.7} className="rail-icon" />
       <span className="truncate">{section.label}</span>
       {section.unavailable ? (
-        <span className="ml-auto rounded-xs border border-line px-1 py-0.5 font-mono text-2xs text-ink-faint">
-          未接入
-        </span>
+        <span className="rail-badge">未接入</span>
       ) : count !== null ? (
-        <span className="ml-auto font-mono text-2xs text-ink-faint">{count}</span>
+        <span className="rail-count">{count}</span>
       ) : null}
     </button>
   );
@@ -240,10 +227,15 @@ export function AppShell() {
     });
   };
 
+  const groupTotal = (keys: NavSectionKey[]) =>
+    keys.reduce((sum, key) => sum + (countFor(key) ?? 0), 0);
+  const contentTotal = groupTotal(CONTENT_SECTION_KEYS);
+  const toolTotal = groupTotal(TOOL_SECTION_KEYS);
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink">
       <ThemeController />
-      <TitleBar />
+      <TitleBar railWidth={leftWidth} />
       <div className="flex min-h-0 w-full flex-1 overflow-hidden">
         <aside style={{ width: leftWidth }} className="flex min-h-0 shrink-0 flex-col bg-surface">
         <div className="nav-stack">
@@ -254,9 +246,14 @@ export function AppShell() {
             inert={navOpen}
             aria-hidden={navOpen}
           >
-            <div ref={rootNavRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-4">
-              <div className="flex flex-col gap-0.5">
-                <div className="label-eyebrow px-2.5 pb-1.5">内容域</div>
+            <div ref={rootNavRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+              <div className="rail-group">
+                <div className="rail-group-label">
+                  <span className="label-eyebrow">内容域</span>
+                  {contentTotal > 0 ? (
+                    <span className="rail-group-total">{contentTotal} 条</span>
+                  ) : null}
+                </div>
                 {CONTENT_SECTION_KEYS.map((key) => (
                   <SectionButton
                     key={key}
@@ -268,8 +265,13 @@ export function AppShell() {
                 ))}
               </div>
 
-              <div className="mt-5 flex flex-col gap-0.5">
-                <div className="label-eyebrow px-2.5 pb-1.5">工具位</div>
+              <div className="rail-divider" />
+
+              <div className="rail-group">
+                <div className="rail-group-label">
+                  <span className="label-eyebrow">工具位</span>
+                  {toolTotal > 0 ? <span className="rail-group-total">{toolTotal} 条</span> : null}
+                </div>
                 {TOOL_SECTION_KEYS.map((key) => (
                   <SectionButton
                     key={key}
@@ -282,9 +284,10 @@ export function AppShell() {
               </div>
             </div>
 
-            <div className="border-t border-line px-2 pb-2 pt-1.5">
-              <div className="flex items-center justify-between px-2.5 pb-1">
+            <div className="border-t border-line px-2 pb-2 pt-2">
+              <div className="flex items-center gap-2 px-2.5 pb-1.5">
                 <span className="label-eyebrow">合集</span>
+                <span className="rail-group-total">{collections.data?.length ?? 0}</span>
                 <button
                   type="button"
                   aria-label={addingCollection ? "收起新建合集" : "新建合集"}
@@ -293,7 +296,7 @@ export function AppShell() {
                     setAddingCollection((value) => !value);
                     setCollectionError(null);
                   }}
-                  className="flex h-5 w-5 items-center justify-center rounded-xs text-ink-faint transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+                  className="ml-auto flex h-5 w-5 items-center justify-center rounded-xs text-ink-faint transition-colors hover:bg-sunken hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
                 >
                   <FolderPlus size={12} strokeWidth={1.8} aria-hidden />
                 </button>
@@ -329,7 +332,7 @@ export function AppShell() {
                 </p>
               ) : null}
 
-              <div className="max-h-24 overflow-y-auto">
+              <div className="max-h-28 overflow-y-auto">
                 {collections.data?.length ? (
                   collections.data.map((entry) => {
                     const selected = entry.id === activeCollectionId;
@@ -338,18 +341,12 @@ export function AppShell() {
                         key={entry.id}
                         type="button"
                         aria-pressed={selected}
+                        data-active={selected}
                         onClick={() => openCollection(entry.id)}
-                        className={cn(
-                          "flex h-7 w-full items-center gap-2 rounded-sm px-2.5 text-left text-meta transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line",
-                          selected
-                            ? "bg-accent-soft text-ink"
-                            : "text-ink-soft hover:bg-surface hover:text-ink",
-                        )}
+                        className="rail-item rail-item-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
                       >
                         <span className="truncate">{entry.name}</span>
-                        <span className="ml-auto font-mono text-2xs text-ink-faint">
-                          {entry.count}
-                        </span>
+                        <span className="rail-count">{entry.count}</span>
                       </button>
                     );
                   })
@@ -358,59 +355,45 @@ export function AppShell() {
                 )}
               </div>
 
-              <div className="mt-1.5 border-t border-line pt-1.5">
-                {[
-                  {
-                    to: "/favorites",
-                    label: "收藏",
-                    icon: Star,
-                    count: viewCounts.data?.favorites ?? null,
-                  },
-                  {
-                    to: "/recent",
-                    label: "最近使用",
-                    icon: History,
-                    count: viewCounts.data?.recent ?? null,
-                  },
-                ].map(({ to, label, icon: Icon, count }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    end
-                    onClick={closeNavSection}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex h-7 items-center gap-2.5 rounded-sm px-2.5 text-meta transition-colors duration-[var(--motion-fast)]",
-                        isActive
-                          ? "bg-accent-soft text-ink"
-                          : "text-ink-soft hover:bg-surface hover:text-ink",
-                      )
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <Icon
-                          aria-hidden
-                          size={13}
-                          strokeWidth={1.7}
-                          className={isActive ? "text-accent" : "text-ink-faint"}
-                        />
+              <div className="mt-2">
+                <div className="quick-grid">
+                  {[
+                    {
+                      to: "/favorites",
+                      label: "收藏",
+                      icon: Star,
+                      count: viewCounts.data?.favorites ?? null,
+                    },
+                    {
+                      to: "/recent",
+                      label: "最近使用",
+                      icon: History,
+                      count: viewCounts.data?.recent ?? null,
+                    },
+                  ].map(({ to, label, icon: Icon, count }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end
+                      onClick={closeNavSection}
+                      className="quick-tile focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+                    >
+                      <span className="quick-tile-head">
+                        <Icon className="quick-tile-icon" aria-hidden size={12} strokeWidth={1.8} />
                         <span className="truncate">{label}</span>
-                        {count !== null ? (
-                          <span className="ml-auto font-mono text-2xs text-ink-faint">{count}</span>
-                        ) : null}
-                      </>
-                    )}
-                  </NavLink>
-                ))}
+                      </span>
+                      <span className="quick-tile-value">{count ?? "—"}</span>
+                    </NavLink>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 border-t border-line px-4 py-2.5">
+            <div className="flex items-center gap-2 border-t border-line px-3 py-2">
               <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-accent" />
-              <span className="text-2xs text-ink-faint">SQLite · 本地模式</span>
+              <span className="text-2xs text-ink-faint">本地库 · SQLite</span>
               <span className="ml-auto font-mono text-2xs text-ink-faint">
-                v{appInfo.data?.appVersion ?? "1.0.3"}
+                v{appInfo.data?.appVersion ?? "1.0.8"}
               </span>
             </div>
           </div>
@@ -422,29 +405,28 @@ export function AppShell() {
             inert={!navOpen}
             aria-hidden={!navOpen}
           >
-            <div className="flex items-start gap-2 border-b border-line px-3 py-3">
-              <button
-                type="button"
-                onClick={closeNavSection}
-                className="mt-0.5 inline-flex h-6 items-center gap-1 rounded-xs px-1.5 text-meta text-ink-soft transition-colors duration-[var(--motion-fast)] hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
-              >
-                <ChevronLeft size={13} strokeWidth={2} aria-hidden /> 返回
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="label-eyebrow">导航 · 二级</div>
-                <div className="mt-0.5 truncate text-sm font-semibold text-ink">
-                  {section?.label ?? "—"}
-                </div>
+            <div className="border-b border-line px-2.5 py-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closeNavSection}
+                  className="rail-item rail-item-sm w-auto pr-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+                >
+                  <ChevronLeft size={13} strokeWidth={2} aria-hidden className="rail-icon" />
+                  <span>返回</span>
+                </button>
+                {sectionTotal !== null ? (
+                  <span className="rail-count ml-auto">{sectionTotal}</span>
+                ) : section?.unavailable ? (
+                  <span className="rail-badge ml-auto">规划中</span>
+                ) : null}
               </div>
-              {sectionTotal !== null ? (
-                <span className="mt-3 shrink-0 font-mono text-2xs text-ink-faint">
-                  {sectionTotal} 条
+              <div className="mt-2 flex items-baseline gap-2 px-1">
+                <span className="label-eyebrow">二级导航</span>
+                <span className="truncate text-sm font-semibold text-ink">
+                  {section?.label ?? "—"}
                 </span>
-              ) : section?.unavailable ? (
-                <span className="mt-3 shrink-0 rounded-xs border border-line px-1 py-0.5 font-mono text-2xs text-ink-faint">
-                  规划中
-                </span>
-              ) : null}
+              </div>
             </div>
 
             <div ref={secondaryNavRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
@@ -465,36 +447,30 @@ export function AppShell() {
               ) : null}
 
               {secondaryGroups.map((group) => (
-                <div key={group.label} className="mb-4">
-                  <div className="label-eyebrow px-2 pb-1.5">{group.label}</div>
-                  <div className="flex flex-col gap-0.5">
-                    {group.categories.map((category) => {
-                      const selected =
-                        activeSection !== null &&
-                        categoryBySection[activeSection] === category.id;
-                      const count =
-                        "count" in category ? (category as { count: number }).count : null;
-                      return (
-                        <button
-                          key={category.id}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => activeSection && chooseCategory(activeSection, category.id)}
-                          className={cn(
-                            "flex h-7 w-full items-center gap-2 rounded-sm px-2 text-left text-meta transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line",
-                            selected
-                              ? "bg-accent-soft text-ink"
-                              : "text-ink-soft hover:bg-surface hover:text-ink",
-                          )}
-                        >
-                          <span className="truncate">{category.label}</span>
-                          <span className="ml-auto font-mono text-2xs text-ink-faint">
-                            {count ?? "—"}
-                          </span>
-                        </button>
-                      );
-                    })}
+                <div key={group.label} className="rail-group mb-4">
+                  <div className="rail-group-label">
+                    <span className="label-eyebrow">{group.label}</span>
                   </div>
+                  {group.categories.map((category) => {
+                    const selected =
+                      activeSection !== null &&
+                      categoryBySection[activeSection] === category.id;
+                    const count =
+                      "count" in category ? (category as { count: number }).count : null;
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        aria-pressed={selected}
+                        data-active={selected}
+                        onClick={() => activeSection && chooseCategory(activeSection, category.id)}
+                        className="rail-item rail-item-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+                      >
+                        <span className="truncate">{category.label}</span>
+                        <span className="rail-count">{count ?? "—"}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
 
@@ -506,7 +482,7 @@ export function AppShell() {
             <div className="border-t border-line px-3 py-2.5">
               <p className="text-2xs leading-normal text-ink-faint">{section?.footnote}</p>
               <p className="mt-1 text-2xs leading-normal text-ink-faint">
-                栈深上限 2 层：选择类目直接筛选中栏；Esc 先清类目，再按一次返回域。
+                Esc 逐级返回 · 类目直接筛选中栏
               </p>
             </div>
           </div>

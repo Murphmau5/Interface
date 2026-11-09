@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { Star } from "lucide-react";
 
 import { useCardPreview } from "@/features/preview/useCardPreview";
@@ -18,9 +18,10 @@ interface CaseListProps {
   onToggleFavorite: (id: string) => void;
 }
 
-const GRID_ROW_HEIGHT = 168;
-const GRID_GAP = 8;
-const TABLE_ROW_HEIGHT = 37;
+const GRID_GAP = 10;
+const CARD_BODY_HEIGHT = 62;
+const CARD_PADDING = 12;
+const TABLE_ROW_HEIGHT = 36;
 const OVERSCAN = 6;
 
 function kindLabel(kind: string): string {
@@ -29,10 +30,13 @@ function kindLabel(kind: string): string {
 
 /**
  * 固定行高虚拟滚动：滚动容器沿用 #content-list，只渲染视口 ± overscan。
- * 监听 scroll（rAF 合并）+ ResizeObserver，卸载时全部解绑。
+ * total 为「行数」；网格按列数把条目切成行后传入。
  */
-function useWindowedRange(total: number, rowHeight: number) {
-  const anchorRef = useRef<HTMLDivElement | null>(null);
+function useWindowedRange(
+  total: number,
+  rowHeight: number,
+  anchorRef: MutableRefObject<HTMLDivElement | null>,
+) {
   const [range, setRange] = useState({ start: 0, end: Math.min(total, 24) });
 
   useEffect(() => {
@@ -72,18 +76,38 @@ function useWindowedRange(total: number, rowHeight: number) {
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [total, rowHeight]);
+  }, [total, rowHeight, anchorRef]);
 
-  return { anchorRef, ...range };
+  return range;
+}
+
+/** 测量网格容器宽度，决定 1 / 2 / 3 列；窗口与面板拖动都会触发 */
+function useContainerWidth(ref: MutableRefObject<HTMLDivElement | null>) {
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const apply = () => setWidth(Math.round(element.getBoundingClientRect().width));
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return width;
 }
 
 function FavoriteButton({
   item,
   busy,
+  overlay = false,
   onToggle,
 }: {
   item: CaseSummary;
   busy: boolean;
+  overlay?: boolean;
   onToggle: (id: string) => void;
 }) {
   return (
@@ -96,13 +120,20 @@ function FavoriteButton({
         event.stopPropagation();
         onToggle(item.id);
       }}
+      data-on={overlay ? item.isFavorite : undefined}
       className={cn(
-        "flex h-5 w-5 shrink-0 items-center justify-center rounded-xs transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line disabled:opacity-40",
-        item.isFavorite ? "text-accent" : "text-ink-faint hover:bg-surface hover:text-ink-soft",
+        overlay
+          ? "list-card-fav"
+          : "flex h-5 w-5 shrink-0 items-center justify-center rounded-xs transition-colors duration-[var(--motion-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line disabled:opacity-40",
+        !overlay &&
+          (item.isFavorite
+            ? "text-accent"
+            : "text-ink-faint hover:bg-surface hover:text-ink-soft"),
+        !overlay && busy && "opacity-40",
       )}
     >
       <Star
-        size={12}
+        size={overlay ? 11 : 12}
         strokeWidth={1.9}
         fill={item.isFavorite ? "currentColor" : "none"}
         aria-hidden
@@ -116,6 +147,7 @@ function CaseCard({
   selected,
   busy,
   poster,
+  thumbHeight,
   onSelect,
   onToggleFavorite,
 }: {
@@ -123,6 +155,7 @@ function CaseCard({
   selected: boolean;
   busy: boolean;
   poster: string | null;
+  thumbHeight: number;
   onSelect: (id: string) => void;
   onToggleFavorite: (id: string) => void;
 }) {
@@ -136,6 +169,7 @@ function CaseCard({
       tabIndex={0}
       aria-pressed={selected}
       aria-label={`${item.title}（${kindLabel(item.kind)}）`}
+      title={`${item.title} · 更新 ${formatDateTime(item.updatedAt)}`}
       onClick={() => onSelect(item.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -144,51 +178,42 @@ function CaseCard({
         }
       }}
       {...cardHandlers}
-      className={cn(
-        "group flex h-full cursor-pointer flex-col rounded-md border bg-raised p-2.5 text-left shadow-ambient transition-colors duration-[var(--motion-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line",
-        selected
-          ? "border-accent-line bg-accent-soft"
-          : "border-line hover:border-line-strong hover:bg-surface",
-      )}
+      data-selected={selected}
+      className="list-card group h-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
     >
-      <div
-        ref={thumbRef}
-        className="relative mb-2.5 h-[72px] shrink-0 overflow-hidden rounded-xs border border-line bg-sunken"
-      >
+      <div ref={thumbRef} className="list-card-thumb" style={{ height: thumbHeight }}>
         {spec && poster ? (
-          <img
-            src={poster}
-            alt=""
-            draggable={false}
-            loading="lazy"
-            className="h-full w-full object-cover"
-          />
+          <img src={poster} alt="" draggable={false} loading="lazy" />
         ) : (
           <div className="flex h-full items-center justify-center font-mono text-2xs tracking-[0.1em] text-ink-faint">
             无预览规格
           </div>
         )}
-        {spec ? (
-          <span className="absolute right-1.5 top-1.5 rounded-xs border border-line bg-surface px-1 py-0.5 font-mono text-2xs text-ink-faint">
-            悬停播放
-          </span>
-        ) : null}
+        {spec ? <span className="list-card-hint">预览</span> : null}
       </div>
 
-      <div className="flex min-h-0 items-start justify-between gap-2">
-        <span className="line-clamp-2 text-sm font-medium leading-snug text-ink">{item.title}</span>
-        <FavoriteButton item={item} busy={busy} onToggle={onToggleFavorite} />
-      </div>
-      <div className="mt-auto flex items-center gap-2 pt-2 text-2xs text-ink-faint">
-        <span className="rounded-xs border border-line px-1.5 py-0.5 text-ink-soft">
-          {kindLabel(item.kind)}
-        </span>
-        <span className="rounded-xs border border-line px-1.5 py-0.5 text-ink-soft">
-          {PLATFORM_LABELS[item.platform] ?? item.platform}
-        </span>
-        <span aria-hidden className="h-0.5 w-0.5 rounded-pill bg-ink-faint" />
-        <span className="truncate">{CONFIDENCE_LABELS[item.confidence] ?? item.confidence}</span>
-        <span className="ml-auto shrink-0 font-mono">{formatDateTime(item.updatedAt)}</span>
+      <FavoriteButton
+        item={item}
+        busy={busy}
+        overlay
+        onToggle={onToggleFavorite}
+      />
+
+      <div className="list-card-body" style={{ minHeight: CARD_BODY_HEIGHT }}>
+        <span className="list-card-title">{item.title}</span>
+        <div className="list-card-meta">
+          <span className="list-card-kind">{kindLabel(item.kind)}</span>
+          <span aria-hidden className="text-ink-faint">
+            /
+          </span>
+          <span className="truncate">{PLATFORM_LABELS[item.platform] ?? item.platform}</span>
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1">
+            <span className="confidence-dot" data-tone={item.confidence} />
+            <span className="truncate">
+              {CONFIDENCE_LABELS[item.confidence] ?? item.confidence}
+            </span>
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -202,35 +227,60 @@ function CardList({
   onToggleFavorite,
 }: Omit<CaseListProps, "view">) {
   const theme = useUiStore((state) => state.resolvedTheme);
-  const { anchorRef, start, end } = useWindowedRange(cases.length, GRID_ROW_HEIGHT);
-  const visible = cases.slice(start, end);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const width = useContainerWidth(anchorRef);
+
+  const columns = width >= 540 ? 3 : width >= 330 ? 2 : 1;
+  const cardWidth = width > 0 ? (width - GRID_GAP * (columns - 1)) / columns : 0;
+  const thumbWidth = Math.max(cardWidth - CARD_PADDING - 2, 0);
+  const thumbHeight =
+    columns === 1
+      ? Math.min(Math.max(thumbWidth * 0.42, 96), 132)
+      : Math.max(Math.round(thumbWidth / 1.6), 88);
+  const cardHeight = CARD_PADDING + thumbHeight + CARD_BODY_HEIGHT;
+  const rowHeight = cardHeight + GRID_GAP;
+  const rows = Math.ceil(cases.length / columns);
+
+  const { start, end } = useWindowedRange(rows, rowHeight, anchorRef);
+
+  if (width === 0) {
+    return <div ref={anchorRef} className="relative w-full" />;
+  }
 
   return (
     <div
       ref={anchorRef}
       className="relative w-full"
-      style={{ height: cases.length * GRID_ROW_HEIGHT }}
+      style={{ height: Math.max(rows * rowHeight - GRID_GAP, 0) }}
     >
-      {visible.map((item, offset) => {
-        const index = start + offset;
-        const spec = parsePreviewSpec(item.payloadJson);
+      {Array.from({ length: Math.max(end - start, 0) }, (_, offset) => {
+        const row = start + offset;
+        const slice = cases.slice(row * columns, (row + 1) * columns);
         return (
           <div
-            key={item.id}
-            className="absolute left-0 right-0"
+            key={row}
+            className="case-grid-row"
             style={{
-              top: index * GRID_ROW_HEIGHT,
-              height: GRID_ROW_HEIGHT - GRID_GAP,
+              top: row * rowHeight,
+              height: cardHeight,
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
             }}
           >
-            <CaseCard
-              item={item}
-              selected={item.id === selectedId}
-              busy={favoriteBusyId === item.id}
-              poster={spec ? getPosterUri(spec, theme) : null}
-              onSelect={onSelect}
-              onToggleFavorite={onToggleFavorite}
-            />
+            {slice.map((item) => {
+              const spec = parsePreviewSpec(item.payloadJson);
+              return (
+                <CaseCard
+                  key={item.id}
+                  item={item}
+                  selected={item.id === selectedId}
+                  busy={favoriteBusyId === item.id}
+                  poster={spec ? getPosterUri(spec, theme) : null}
+                  thumbHeight={thumbHeight}
+                  onSelect={onSelect}
+                  onToggleFavorite={onToggleFavorite}
+                />
+              );
+            })}
           </div>
         );
       })}
@@ -245,30 +295,21 @@ function TableList({
   onSelect,
   onToggleFavorite,
 }: Omit<CaseListProps, "view">) {
-  const { anchorRef, start, end } = useWindowedRange(cases.length, TABLE_ROW_HEIGHT);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const { start, end } = useWindowedRange(cases.length, TABLE_ROW_HEIGHT, anchorRef);
   const visible = cases.slice(start, end);
 
   return (
-    <div ref={anchorRef} className="overflow-x-auto rounded-md border border-line bg-raised">
-      <table className="w-full min-w-[300px] border-collapse text-sm">
+    <div ref={anchorRef} className="table-shell">
+      <table className="list-table w-full table-fixed">
         <thead>
-          <tr className="border-b border-line bg-sunken text-left">
-            <th className="px-3 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
-              标题
-            </th>
-            <th className="px-2 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
-              类型
-            </th>
-            <th className="px-2 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
-              平台
-            </th>
-            <th className="px-2 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
-              置信度
-            </th>
-            <th className="px-2 py-2 text-2xs font-semibold uppercase tracking-[0.08em] text-ink-faint">
-              更新
-            </th>
-            <th className="w-8 px-1 py-2" aria-label="收藏" />
+          <tr>
+            <th>标题</th>
+            <th className="w-[36px]">类型</th>
+            <th className="w-[54px]">平台</th>
+            <th className="w-[68px]">置信度</th>
+            <th className="w-[74px]">更新</th>
+            <th className="w-[24px]" aria-label="收藏" />
           </tr>
         </thead>
         <tbody>
@@ -281,33 +322,28 @@ function TableList({
           {visible.map((item) => {
             const selected = item.id === selectedId;
             return (
-              <tr
-                key={item.id}
-                className={cn(
-                  "h-[37px] border-b border-line last:border-b-0",
-                  selected ? "bg-accent-soft" : "hover:bg-surface",
-                )}
-              >
-                <td className="px-3 py-2">
+              <tr key={item.id} data-selected={selected}>
+                <td data-primary="true">
                   <button
                     type="button"
                     onClick={() => onSelect(item.id)}
-                    className="block w-full truncate text-left text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
+                    className="cell-title w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line"
                   >
                     {item.title}
                   </button>
                 </td>
-                <td className="px-2 py-2 text-meta text-ink-soft">{kindLabel(item.kind)}</td>
-                <td className="px-2 py-2 text-meta text-ink-soft">
-                  {PLATFORM_LABELS[item.platform] ?? item.platform}
+                <td>{kindLabel(item.kind)}</td>
+                <td>{PLATFORM_LABELS[item.platform] ?? item.platform}</td>
+                <td>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="confidence-dot" data-tone={item.confidence} />
+                    {CONFIDENCE_LABELS[item.confidence] ?? item.confidence}
+                  </span>
                 </td>
-                <td className="px-2 py-2 text-meta text-ink-soft">
-                  {CONFIDENCE_LABELS[item.confidence] ?? item.confidence}
-                </td>
-                <td className="whitespace-nowrap px-2 py-2 font-mono text-2xs text-ink-faint">
+                <td className="font-mono text-2xs text-ink-faint">
                   {formatDateTime(item.updatedAt)}
                 </td>
-                <td className="px-1 py-2">
+                <td className="px-1">
                   <FavoriteButton
                     item={item}
                     busy={favoriteBusyId === item.id}
