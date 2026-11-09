@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   ipc,
+  type AiAnalyzeInput,
   type CandidateEdit,
   type CandidateInput,
   type CandidateStatus,
@@ -48,6 +49,31 @@ export function useRejectCandidate() {
   return useMutation({
     mutationFn: ({ id, note }: { id: string; note?: string }) =>
       ipc.candidatesReject(id, note),
+    onSuccess: invalidate,
+  });
+}
+
+export function useAiAnalyze() {
+  const invalidate = useInvalidateReview();
+  return useMutation({
+    mutationFn: (input: AiAnalyzeInput) => ipc.aiAnalyze(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDiscoveryFetchUrl() {
+  const invalidate = useInvalidateReview();
+  return useMutation({
+    mutationFn: (input: { url: string; kind: string }) => ipc.discoveryFetchUrl(input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDiscoverySearch() {
+  const invalidate = useInvalidateReview();
+  return useMutation({
+    mutationFn: (input: { query: string; kind: string; limit?: number }) =>
+      ipc.discoverySearch(input),
     onSuccess: invalidate,
   });
 }

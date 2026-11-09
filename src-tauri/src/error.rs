@@ -9,6 +9,23 @@ pub enum AppError {
     InvalidInput(String),
     #[error("{0}")]
     NotFound(String),
+    /// Windows 凭据管理器读写失败（E_SECRET_STORE）
+    #[error("{0}")]
+    Secret(String),
+    /// AI 服务未配置或不可用（E_AI_UNAVAILABLE）
+    #[error("{0}")]
+    AiUnavailable(String),
+    /// AI 输出不符合约定结构（E_AI_SCHEMA）
+    #[error("{0}")]
+    AiSchema(String),
+    /// AI Provider 侧错误，code 直接采用分类表
+    /// （E_AUTH / E_FORBIDDEN / E_QUOTA / E_RATE_LIMIT / E_AI_TIMEOUT /
+    ///  E_NETWORK / E_MODEL_NOT_FOUND / E_REQUEST / E_PROVIDER_DOWN）
+    #[error("{message}")]
+    AiProvider { code: String, message: String },
+    /// 联网抓取 / 搜索失败，code 见 fetch.rs 错误表
+    #[error("{message}")]
+    Fetch { code: String, message: String },
 }
 
 impl Serialize for AppError {
@@ -33,6 +50,35 @@ impl Serialize for AppError {
                 map.serialize_entry("code", "NOT_FOUND")?;
                 map.serialize_entry("message", message)?;
                 map.serialize_entry("retryable", &false)?;
+            }
+            AppError::Secret(message) => {
+                map.serialize_entry("code", "E_SECRET_STORE")?;
+                map.serialize_entry("message", message)?;
+                map.serialize_entry("retryable", &false)?;
+            }
+            AppError::AiUnavailable(message) => {
+                map.serialize_entry("code", "E_AI_UNAVAILABLE")?;
+                map.serialize_entry("message", message)?;
+                map.serialize_entry("retryable", &false)?;
+            }
+            AppError::AiSchema(message) => {
+                map.serialize_entry("code", "E_AI_SCHEMA")?;
+                map.serialize_entry("message", message)?;
+                map.serialize_entry("retryable", &false)?;
+            }
+            AppError::AiProvider { code, message } => {
+                map.serialize_entry("code", code)?;
+                map.serialize_entry("message", message)?;
+                map.serialize_entry("retryable", &true)?;
+            }
+            AppError::Fetch { code, message } => {
+                map.serialize_entry("code", code)?;
+                map.serialize_entry("message", message)?;
+                let retryable = matches!(
+                    code.as_str(),
+                    "E_FETCH_TIMEOUT" | "E_NETWORK" | "E_HTTP_STATUS" | "E_RATE_LIMIT" | "E_PROVIDER_DOWN"
+                );
+                map.serialize_entry("retryable", &retryable)?;
             }
         }
         map.end()

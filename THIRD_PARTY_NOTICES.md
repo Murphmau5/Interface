@@ -34,6 +34,7 @@ Rust 依赖树中以下许可属宽松型、但不在白名单内，已由 `scri
 | Zlib | foldhash / zlib-rs | 宽松许可，非 copyleft |
 | Unicode-3.0 | ICU / zerovec / yoke 等 | Unicode 数据组件许可，宽松 |
 | Unlicense | same-file / walkdir | 与 MIT 双许可，宽松 |
+| CDLA-Permissive-2.0 | webpki-root-certs | rustls-platform-verifier 使用的根证书数据许可，宽松、不传染源码 |
 
 上述组件随安装包分发时保留其版权与许可原文，源码均可从 crates.io 获取。
 

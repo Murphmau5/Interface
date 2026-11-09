@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
+use sqlx::{FromRow, SqlitePool};
 use tauri::State;
 use uuid::Uuid;
 
@@ -10,7 +10,8 @@ use crate::error::AppError;
 const MAX_TITLE_CHARS: usize = 120;
 const MAX_SUMMARY_CHARS: usize = 400;
 const MAX_PAYLOAD_BYTES: usize = 64 * 1024;
-const SOURCES: [&str; 4] = ["manual", "url", "import", "search"];
+/// ai 来源供 ai_analyze 链路写入；approve 规则：manual → user_defined，其余（含 ai）→ estimated
+const SOURCES: [&str; 5] = ["manual", "url", "import", "search", "ai"];
 const STATUSES: [&str; 3] = ["pending", "approved", "rejected"];
 
 #[derive(Debug, Serialize, FromRow)]
@@ -108,33 +109,32 @@ pub async fn candidates_list(
     Ok(rows)
 }
 
-#[tauri::command]
-pub async fn candidates_create(
-    db: State<'_, Db>,
-    input: CandidateInput,
+/// 共用入库函数：candidates_create 与 ai_analyze 都走这里，唯一候选写入路径
+pub(crate) async fn insert_candidate(
+    pool: &SqlitePool,
+    kind: &str,
+    title: &str,
+    summary: &str,
+    payload: &str,
+    source: &str,
+    source_url: Option<&str>,
 ) -> Result<CandidateRow, AppError> {
-    let title = input.title.trim();
     if title.is_empty() || title.chars().count() > MAX_TITLE_CHARS {
         return Err(AppError::InvalidInput(
             "候选标题不能为空且不能超过 120 个字符".into(),
         ));
     }
-    if !CASE_KINDS.contains(&input.kind.as_str()) {
+    if !CASE_KINDS.contains(&kind) {
         return Err(AppError::InvalidInput("未知的候选类型".into()));
     }
-
-    let summary = input.summary.unwrap_or_default();
     if summary.chars().count() > MAX_SUMMARY_CHARS {
         return Err(AppError::InvalidInput("候选摘要不能超过 400 个字符".into()));
     }
-
-    let source = input.source.unwrap_or_else(|| "manual".into());
-    if !SOURCES.contains(&source.as_str()) {
+    if !SOURCES.contains(&source) {
         return Err(AppError::InvalidInput("候选来源不合法".into()));
     }
 
-    let source_url = input
-        .source_url
+    let source_url = source_url
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     if source == "url" {
@@ -149,8 +149,7 @@ pub async fn candidates_create(
         }
     }
 
-    let payload = input.payload_json.unwrap_or_else(|| "{}".into());
-    validate_payload(&payload)?;
+    validate_payload(payload)?;
 
     let id = Uuid::new_v4().to_string();
     sqlx::query(
@@ -161,16 +160,43 @@ pub async fn candidates_create(
         "#,
     )
     .bind(&id)
-    .bind(&input.kind)
+    .bind(kind)
     .bind(title)
     .bind(summary)
-    .bind(&payload)
-    .bind(&source)
+    .bind(payload)
+    .bind(source)
     .bind(&source_url)
-    .execute(&db.pool)
+    .execute(pool)
     .await?;
 
-    fetch_candidate(&db, &id).await
+    let sql = format!("{} WHERE id = ?1", select_sql());
+    sqlx::query_as::<_, CandidateRow>(&sql)
+        .bind(&id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("候选不存在".into()))
+}
+
+#[tauri::command]
+pub async fn candidates_create(
+    db: State<'_, Db>,
+    input: CandidateInput,
+) -> Result<CandidateRow, AppError> {
+    let title = input.title.trim();
+    let summary = input.summary.unwrap_or_default();
+    let source = input.source.unwrap_or_else(|| "manual".into());
+    let payload = input.payload_json.unwrap_or_else(|| "{}".into());
+
+    insert_candidate(
+        &db.pool,
+        &input.kind,
+        title,
+        &summary,
+        &payload,
+        &source,
+        input.source_url.as_deref(),
+    )
+    .await
 }
 
 /// 拒绝：只落状态，不写 cases
@@ -180,7 +206,7 @@ pub async fn candidates_reject(
     id: String,
     note: Option<String>,
 ) -> Result<CandidateRow, AppError> {
-    ensure_pending(&db, &id).await?;
+    ensure_pending(&db.pool, &id).await?;
 
     sqlx::query(
         r#"
@@ -196,7 +222,7 @@ pub async fn candidates_reject(
     .execute(&db.pool)
     .await?;
 
-    fetch_candidate(&db, &id).await
+    fetch_candidate(&db.pool, &id).await
 }
 
 /// 通过（可带编辑）：唯一入库路径，没有免审开关
@@ -206,7 +232,16 @@ pub async fn candidates_approve(
     id: String,
     edit: Option<CandidateEdit>,
 ) -> Result<CaseSummary, AppError> {
-    let candidate = ensure_pending(&db, &id).await?;
+    approve_candidate(&db.pool, &id, edit).await
+}
+
+/// 无 State 的审核入库核心：命令层与端到端测试共用同一条路径。
+pub(crate) async fn approve_candidate(
+    pool: &SqlitePool,
+    id: &str,
+    edit: Option<CandidateEdit>,
+) -> Result<CaseSummary, AppError> {
+    let candidate = ensure_pending(pool, id).await?;
 
     let title = edit
         .as_ref()
@@ -227,9 +262,8 @@ pub async fn candidates_approve(
         "estimated"
     };
 
-    let pool = db.pool.clone();
-    let created = cases::cases_create(
-        db,
+    let created = cases::create_case(
+        pool,
         CreateCaseInput {
             title,
             kind: candidate.kind,
@@ -252,16 +286,16 @@ pub async fn candidates_approve(
         WHERE id = ?1
         "#,
     )
-    .bind(&id)
+    .bind(id)
     .bind(&created.id)
-    .execute(&pool)
+    .execute(pool)
     .await?;
 
     Ok(created)
 }
 
-async fn ensure_pending(db: &Db, id: &str) -> Result<CandidateRow, AppError> {
-    let candidate = fetch_candidate(db, id).await?;
+async fn ensure_pending(pool: &SqlitePool, id: &str) -> Result<CandidateRow, AppError> {
+    let candidate = fetch_candidate(pool, id).await?;
     if candidate.status != "pending" {
         return Err(AppError::InvalidInput(format!(
             "该候选已是「{}」状态，不能重复审核",
@@ -271,11 +305,11 @@ async fn ensure_pending(db: &Db, id: &str) -> Result<CandidateRow, AppError> {
     Ok(candidate)
 }
 
-async fn fetch_candidate(db: &Db, id: &str) -> Result<CandidateRow, AppError> {
+async fn fetch_candidate(pool: &SqlitePool, id: &str) -> Result<CandidateRow, AppError> {
     let sql = format!("{} WHERE id = ?1", select_sql());
     sqlx::query_as::<_, CandidateRow>(&sql)
         .bind(id)
-        .fetch_optional(&db.pool)
+        .fetch_optional(pool)
         .await?
         .ok_or_else(|| AppError::NotFound("候选不存在".into()))
 }

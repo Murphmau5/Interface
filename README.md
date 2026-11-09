@@ -1,8 +1,8 @@
 # 界序 INTERFACE
 
-**v1.0.5 · 导入 HTML 安全预览 + 五类自绘场景** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版补齐导入 HTML 的清洗、独立窗口预览与 CSP/Sandbox 双重隔离，并把五类预览场景从个位数扩到 41 个自绘场景。
+**v1.0.6 · 联网抓取链路** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版打通联网采集：粘贴公开网址即可抓取正文入候选池，带 URL 守卫、正文提取与近似去重，搜索采集支持 Tavily / Brave / Bing / custom 四种服务。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.5) → `INTERFACE_1.0.5_x64-setup.exe`（6.06 MB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.6) → `INTERFACE_1.0.6_x64-setup.exe`（7.30 MiB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
@@ -31,14 +31,14 @@
 
 | 项 | 状态 |
 |---|---|
-| 版本 | **v1.0.5（导入 HTML 安全预览 + 五类自绘场景）** |
-| 阶段 | Phase 2 收口完成；本版补齐导入 HTML 的安全执行链路与预览场景 |
+| 版本 | **v1.0.6（联网抓取链路）** |
+| 阶段 | Phase 2 收口完成；本版打通联网抓取与搜索采集链路 |
 | 安装包 | **已发布**（NSIS，Windows x64，未签名），见 GitHub Releases |
 | 文档 | 治理七件套 + A–J 十份启动文档 + 架构自检，已就绪 |
 | 代码 | 工程脚手架已通过安装 / 启动 / 卸载实测；功能项按验收逐条转 ✅ |
-| 发布渠道 | GitHub Releases `v1.0.5` |
+| 发布渠道 | GitHub Releases `v1.0.6` |
 
-> 本版重点：导入 HTML 走白名单清洗（`<script>`、事件属性、`javascript:`、`@import`、CSS 外链 `url()`、iframe/object/embed 全部剥离，逐条返回可读原因并落库）；预览跑在独立 `WebviewWindow`，Rust 派发层按窗口标签拒绝全部 IPC，iframe 保持 `sandbox="allow-scripts"` 且无 `allow-same-origin`；CSP 使用显式协议源并用 CDP 实测；五类预览场景扩到 41 个，全部自绘、无外部素材。切换 100 次、400 条虚拟滚动与空闲回落均实测通过。
+> 本版重点：粘贴公开 http/https 网址即可抓取正文写入候选池待审核；URL 守卫只放行 http/https，拒绝带用户名密码、本机 / 内网 / 链路本地 / 保留地址与内部域名，重定向逐跳校验最多 5 跳，单页响应上限 2 MB，只接受 `text/html`、`application/xhtml+xml`、`text/plain`；正文剥离 script / style / noscript / 注释 / SVG 后取 title、meta description 与正文；同一规范化 URL 与内容近似（二元组 Jaccard ≥ 0.85）均判重；抓到的 HTML 一律 `unclean` 入库、只存 ≤ 16 KB 摘要、不执行不渲染；失败逐条返回可读错误码。AI 工作台分析与搜索采集需自备 Key，粘贴网址抓取与本地浏览不配 Key 也能用。真实第三方搜索 Provider 与真实模型服务端到端未验证。
 
 ## 功能清单
 
@@ -100,15 +100,15 @@
 
 ## 安装方式（Windows）
 
-1. 从 [GitHub Releases v1.0.4](https://github.com/Murphmau5/Interface/releases/tag/v1.0.4) 下载 `INTERFACE_1.0.4_x64-setup.exe`（6,276,631 字节 / 5.99 MB）。本地构建产物的原名是 `界序 INTERFACE_1.0.4_x64-setup.exe`，上传时附件名改为 ASCII 名，内容一致。
+1. 从 [GitHub Releases v1.0.6](https://github.com/Murphmau5/Interface/releases/tag/v1.0.6) 下载 `INTERFACE_1.0.6_x64-setup.exe`（7.30 MiB / 7,651,062 字节）。本地构建产物的原名是 `界序 INTERFACE_1.0.6_x64-setup.exe`，上传时附件名改为 ASCII 名，内容一致。
 2. 核对 SHA-256：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.4_x64-setup.exe"
-# 6C9D34AAB628586AC0EEAB2F7DC0D8E4F1CEE1A7CA22301C7E6E11C049E23CB4
+Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.6_x64-setup.exe"
+# c3e4f2075d3e6a8dd54ec6544c21d4109635a321f6f867a0742d0e84f729ddc7
 ```
 
-3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。**已装 1.0.0 / 1.0.2 / 1.0.3 的用户直接双击即可覆盖升级，不需要先手动卸载。**
+3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。**已装 1.0.0 / 1.0.2 / 1.0.3 / 1.0.4 / 1.0.5 的用户直接双击即可覆盖升级，不需要先手动卸载。**
 4. 首次启动读取系统主题，默认「跟随系统」。
 
 **未签名提示**：本安装包未做代码签名，首次运行可能触发 Windows SmartScreen（「Windows 已保护你的电脑」）。确认 SHA-256 与上表一致后，可选择「更多信息 → 仍要运行」。校验和一致即可确认文件未被篡改。

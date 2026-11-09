@@ -185,6 +185,27 @@ export interface CandidateEdit {
   payloadJson?: string;
 }
 
+export interface DiscoveryItemResult {
+  url: string;
+  outcome: "created" | "duplicate" | "failed";
+  title?: string | null;
+  candidateId?: string | null;
+  existingCandidateId?: string | null;
+  code?: string | null;
+  message?: string | null;
+}
+
+export interface DiscoveryBatchResult {
+  ok: boolean;
+  code: string;
+  message: string;
+  requested: number;
+  created: number;
+  duplicates: number;
+  failed: number;
+  items: DiscoveryItemResult[];
+}
+
 export interface ExportBundle {
   markdownPath: string;
   jsonPath: string;
@@ -197,6 +218,65 @@ export interface AppInfo {
   dbPath: string;
   platform: string;
   caseCount: number;
+}
+
+export type AiAuthMode = "bearer" | "none";
+export type AiScope = "model" | "search";
+
+export interface AiProviderConfig {
+  providerId: string;
+  baseUrl: string;
+  model: string;
+  authMode: AiAuthMode;
+  timeoutMs: number;
+  maxOutputTokens: number;
+}
+
+export interface AiSearchConfig {
+  providerId: string;
+  baseUrl: string;
+  authMode: AiAuthMode;
+}
+
+/** 前端可见字段只有这三项，不存在任何返回明文 Key 的命令 */
+export interface AiCredentialStatus {
+  configured: boolean;
+  last4: string;
+  updatedAt: string | null;
+}
+
+export interface AiSettingsSnapshot {
+  provider: AiProviderConfig;
+  search: AiSearchConfig;
+  credential: AiCredentialStatus;
+  searchCredential: AiCredentialStatus;
+}
+
+export interface AiTestResult {
+  ok: boolean;
+  code: string;
+  message: string;
+  latencyMs: number;
+  httpStatus: number | null;
+}
+
+export interface AiAnalyzeInput {
+  kind: string;
+  draft: string;
+  sourceUrl?: string;
+}
+
+export interface AiAnalyzeResult {
+  candidate: CandidateRow;
+  warnings: string[];
+  model: string;
+}
+
+export interface AiConfigExport {
+  provider: AiProviderConfig;
+  search: AiSearchConfig;
+  apiKey: string;
+  searchApiKey: string;
 }
 
 export class IpcError extends Error {
@@ -281,6 +361,26 @@ export const ipc = {
     call<CandidateRow>("candidates_reject", { id, note }),
   candidatesApprove: (id: string, edit?: CandidateEdit) =>
     call<CaseSummary>("candidates_approve", { id, edit }),
+
+  discoveryFetchUrl: (input: { url: string; kind: string }) =>
+    call<DiscoveryBatchResult>("discovery_fetch_url", { input }),
+  discoverySearch: (input: { query: string; kind: string; limit?: number }) =>
+    call<DiscoveryBatchResult>("discovery_search", { input }),
+
+  aiSettingsGet: () => call<AiSettingsSnapshot>("ai_settings_get"),
+  aiProviderSet: (input: AiProviderConfig) =>
+    call<AiProviderConfig>("ai_provider_set", { input }),
+  aiSearchSet: (input: AiSearchConfig) =>
+    call<AiSearchConfig>("ai_search_set", { input }),
+  aiCredentialSet: (scope: AiScope, key: string) =>
+    call<AiCredentialStatus>("ai_credential_set", { scope, key }),
+  aiCredentialClear: (scope: AiScope) =>
+    call<AiCredentialStatus>("ai_credential_clear", { scope }),
+  aiTestConnection: (scope: AiScope) =>
+    call<AiTestResult>("ai_test_connection", { scope }),
+  aiAnalyze: (input: AiAnalyzeInput) =>
+    call<AiAnalyzeResult>("ai_analyze", { input }),
+  aiConfigExport: () => call<AiConfigExport>("ai_config_export"),
 
   catalogList: () => call<CatalogDomain[]>("catalog_list"),
   appInfo: () => call<AppInfo>("app_info"),

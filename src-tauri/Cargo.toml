@@ -1,6 +1,6 @@
 [package]
 name = "jiexu-interface"
-version = "1.0.5"
+version = "1.0.6"
 description = "界序 INTERFACE — 双主题 UI 动效仪器台"
 authors = ["界序 INTERFACE contributors"]
 edition = "2021"
@@ -25,6 +25,25 @@ sqlx = { version = "0.8", default-features = false, features = [
 uuid = { version = "1", features = ["v4"] }
 thiserror = "2"
 pinyin = { version = "0.11.0", default-features = false, features = ["plain"] }
+# AI 接线（BYOK）：HTTP 走 rustls 栈。reqwest 0.13 已无 `rustls-tls` 特性名，
+# 等价组合为 `rustls-no-provider`（TLS 实现）+ `json`；crypto provider 用 ring
+# （aws-lc-rs 不在本地缓存且 Windows 构建依赖 cmake/nasm，ring 许可落在白名单内），
+# 应用启动时 install_default 一次。
+reqwest = { version = "0.13", default-features = false, features = [
+  "rustls-no-provider",
+  "json",
+] }
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "std",
+  "tls12",
+] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security_Credentials",
+] }
+# 抓取链路做域名解析守卫（DNS → 内网 IP 一律拒绝）
+tokio = { version = "1", features = ["net"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -11,6 +11,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  Sparkles,
   Sun,
   X,
   type LucideIcon,
@@ -20,6 +21,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
+import { AiSettingsSection } from "@/features/settings/AiSection";
 import { useAppInfo, useSetSetting, useSettings } from "@/features/settings/api";
 import { DEFAULT_LAYOUT, SETTINGS_KEYS } from "@/lib/constants";
 import { LICENSE_ENTRIES, LICENSE_POLICY } from "@/lib/licenses";
@@ -31,7 +33,7 @@ const THEME_OPTIONS = [
   { value: "light", label: "浅色", icon: <Sun size={12} strokeWidth={1.8} aria-hidden /> },
 ] as const;
 
-type SettingsSectionId = "appearance" | "layout" | "storage" | "backup" | "about";
+type SettingsSectionId = "appearance" | "ai" | "layout" | "storage" | "backup" | "about";
 
 interface SettingsSection {
   id: SettingsSectionId;
@@ -68,6 +70,14 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
         description: "左栏与中栏宽度实时保存；窗口最小宽度 1000px，避免内容被压到不可读。",
         icon: LayoutPanelLeft,
         keywords: ["布局", "面板", "宽度", "左栏", "中栏", "恢复", "默认", "窗口"],
+      },
+      {
+        id: "ai",
+        label: "AI 接线",
+        title: "AI 接线",
+        description: "自带 Key（BYOK）连接模型与搜索服务；Key 存储于 Windows 凭据管理器，不写入数据库、不写入日志、不随导出包导出。",
+        icon: Sparkles,
+        keywords: ["AI", "模型", "搜索", "Key", "密钥", "凭据", "BYOK", "Tavily", "Brave", "Bing", "Ollama", "接口", "测试", "导出"],
       },
     ],
   },
@@ -294,6 +304,8 @@ export function SettingsView() {
             </SettingCard>
           </>
         );
+      case "ai":
+        return <AiSettingsSection />;
       case "layout":
         return (
           <>

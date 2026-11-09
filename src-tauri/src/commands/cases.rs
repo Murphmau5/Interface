@@ -354,6 +354,14 @@ pub async fn cases_create(
     db: State<'_, Db>,
     input: CreateCaseInput,
 ) -> Result<CaseSummary, AppError> {
+    create_case(&db.pool, input).await
+}
+
+/// 无 State 的入库核心：命令层与端到端测试共用同一条路径。
+pub(crate) async fn create_case(
+    pool: &sqlx::SqlitePool,
+    input: CreateCaseInput,
+) -> Result<CaseSummary, AppError> {
     let title = input.title.trim();
     if title.is_empty() || title.chars().count() > MAX_TITLE_CHARS {
         return Err(AppError::InvalidInput(
@@ -386,7 +394,7 @@ pub async fn cases_create(
     if let Some(category) = &category_id {
         let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM categories WHERE id = ?1")
             .bind(category)
-            .fetch_optional(&db.pool)
+            .fetch_optional(pool)
             .await?;
         if exists.is_none() {
             return Err(AppError::InvalidInput("类目不存在".into()));
@@ -423,12 +431,12 @@ pub async fn cases_create(
     .bind(&category_id)
     .bind(&platform)
     .bind(&component_layer)
-    .execute(&db.pool)
+    .execute(pool)
     .await?;
 
-    search::refresh_case(&db.pool, &id).await?;
+    search::refresh_case(pool, &id).await?;
 
-    fetch_case(&db.pool, &id).await
+    fetch_case(pool, &id).await
 }
 
 #[tauri::command]

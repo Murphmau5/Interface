@@ -46,6 +46,10 @@ const TRANSITIVE_ALLOWANCES = new Map([
   ["Zlib", "Tauri 依赖链中的 foldhash / zlib-rs；宽松许可"],
   ["Unicode-3.0", "Tauri 依赖链中的 ICU / zerovec 组件；宽松许可"],
   ["Unlicense", "Tauri 依赖链中的 same-file / walkdir（亦可用 MIT）；宽松许可"],
+  [
+    "CDLA-Permissive-2.0",
+    "rustls-platform-verifier 依赖的 webpki-root-certs 根证书数据；宽松数据许可，不传染本项目源码",
+  ],
 ]);
 
 /** Rust 旧式双许可写法 `MIT/Apache-2.0` 等价于 `MIT OR Apache-2.0` */

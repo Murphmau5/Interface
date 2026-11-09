@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Layers, LayoutGrid, List, RotateCcw, Search } from "lucide-react";
 
 import { PanelLayout } from "@/components/layout/PanelLayout";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
-import { useCreateCandidate } from "@/features/candidates/api";
+import { useDiscoveryFetchUrl, useDiscoverySearch } from "@/features/candidates/api";
 import { CaseDetail } from "@/features/cases/CaseDetail";
 import { CaseList } from "@/features/cases/CaseList";
 import { CreateCaseForm } from "@/features/cases/CreateCaseForm";
@@ -18,7 +19,7 @@ import {
   useCollections,
   useToggleFavorite,
 } from "@/features/cases/api";
-import { useSettings } from "@/features/settings/api";
+import { useAiSettings } from "@/features/settings/api";
 import {
   CASE_KIND_DESCRIPTIONS,
   CASE_KIND_LABELS,
@@ -47,8 +48,6 @@ const SCOPE_OPTIONS = [
   { value: "local", label: "本地" },
   { value: "online", label: "联网" },
 ] as const;
-
-const AI_KEY_SETTING = "lab.ai.apiKey";
 
 function workspaceCopy(props: CaseWorkspaceProps): {
   eyebrow: string;
@@ -99,6 +98,7 @@ function withCounts(
 
 export function CaseWorkspace(props: CaseWorkspaceProps) {
   const copy = workspaceCopy(props);
+  const navigate = useNavigate();
   const toggleFavorite = useToggleFavorite();
   const sectionKey = props.scope === "kind" ? (props.kind as NavSectionKey) : null;
   const selectedCategory = useUiStore((state) =>
@@ -113,8 +113,9 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const activeCollectionId = useUiStore((state) => state.activeCollectionId);
   const setActiveCollection = useUiStore((state) => state.setActiveCollection);
   const collections = useCollections();
-  const settings = useSettings();
-  const createCandidate = useCreateCandidate();
+  const aiSettings = useAiSettings();
+  const discoveryFetchUrl = useDiscoveryFetchUrl();
+  const discoverySearch = useDiscoverySearch();
 
   const collection =
     props.scope === "all"
@@ -170,6 +171,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
+  const [queryDraft, setQueryDraft] = useState("");
   const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
 
   // 220ms 防抖后再把输入写入唯一筛选状态，查询由 SQL 执行
@@ -185,7 +187,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
 
-  const hasAiKey = Boolean(settings.data?.[AI_KEY_SETTING]?.trim());
+  const searchConfigured = Boolean(aiSettings.data?.searchCredential.configured);
 
   const handleToggleFavorite = (id: string) => {
     toggleFavorite.mutate(id, {
@@ -200,28 +202,46 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     setSelectedId(id);
   };
 
+  const captureKind: CaseKind = props.scope === "kind" ? props.kind : "style";
+
   const handleUrlSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const url = urlDraft.trim();
     if (!url) return;
-    let host = url;
-    try {
-      host = new URL(url).hostname;
-    } catch {
-      setOnlineMessage("网址格式不合法，需要以 http:// 或 https:// 开头。");
-      return;
-    }
-    createCandidate.mutate(
+    discoveryFetchUrl.mutate(
+      { url, kind: captureKind },
       {
-        kind: props.scope === "kind" ? props.kind : "style",
-        title: `待抓取：${host}`,
-        source: "url",
-        sourceUrl: url,
+        onSuccess: (result) => {
+          const item = result.items[0];
+          if (!item) {
+            setOnlineMessage(`${result.code} ${result.message}`.trim());
+            return;
+          }
+          if (item.outcome === "created") {
+            setUrlDraft("");
+            setOnlineMessage(`已入候选池待审核：${item.title ?? item.url}`);
+          } else if (item.outcome === "duplicate") {
+            setOnlineMessage("该网址已有候选，未重复创建");
+          } else {
+            setOnlineMessage(`抓取失败：${item.code ?? ""} ${item.message ?? ""}`.trim());
+          }
+        },
+        onError: (error) => setOnlineMessage(error.message),
       },
+    );
+  };
+
+  const handleSearchSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = queryDraft.trim();
+    if (!query) return;
+    discoverySearch.mutate(
+      { query, kind: captureKind },
       {
-        onSuccess: () => {
-          setUrlDraft("");
-          setOnlineMessage("已登记为待审核候选；不会自动抓取或请求该网址。");
+        onSuccess: (result) => {
+          setOnlineMessage(
+            `检索完成：请求 ${result.requested} · 新增 ${result.created} · 重复 ${result.duplicates} · 失败 ${result.failed}`,
+          );
         },
         onError: (error) => setOnlineMessage(error.message),
       },
@@ -362,33 +382,47 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
                 回到本地
               </button>
             </div>
-            {hasAiKey ? (
-              <p className="mt-1 leading-normal text-ink-faint">
-                已检测到 API Key，但联网检索 Provider 尚未接入；本版本不会自动发起任何请求。
-              </p>
+            <form onSubmit={handleUrlSubmit} className="mt-2 flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <Input
+                  aria-label="粘贴网址"
+                  value={urlDraft}
+                  placeholder="https://example.com/article"
+                  onChange={(event) => setUrlDraft(event.target.value)}
+                />
+              </div>
+              <Button size="sm" type="submit" disabled={discoveryFetchUrl.isPending}>
+                {discoveryFetchUrl.isPending ? "抓取中…" : "抓取并登记"}
+              </Button>
+            </form>
+            <p className="mt-1 leading-normal text-ink-faint">
+              粘贴网址即可抓取公开 http/https 页面，不需要任何 Key；内网与本机地址会被拒绝。
+            </p>
+            {searchConfigured ? (
+              <form onSubmit={handleSearchSubmit} className="mt-2 flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input
+                    aria-label="检索关键词"
+                    value={queryDraft}
+                    placeholder="检索关键词，例如：玻璃拟态导航栏"
+                    onChange={(event) => setQueryDraft(event.target.value)}
+                  />
+                </div>
+                <Button size="sm" type="submit" disabled={discoverySearch.isPending}>
+                  {discoverySearch.isPending ? "检索中…" : "检索并采集"}
+                </Button>
+              </form>
             ) : (
-              <>
-                <p className="mt-1 leading-normal text-ink-faint">
-                  未配置 Key：联网入口降级为「粘贴网址登记」，只写入待审核候选，不自动抓取。
-                </p>
-                <form onSubmit={handleUrlSubmit} className="mt-2 flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <Input
-                      aria-label="粘贴网址"
-                      value={urlDraft}
-                      placeholder="https://example.com/article"
-                      onChange={(event) => setUrlDraft(event.target.value)}
-                    />
-                  </div>
-                  <Button size="sm" type="submit" disabled={createCandidate.isPending}>
-                    登记网址
-                  </Button>
-                </form>
-                {onlineMessage ? (
-                  <p className="mt-1.5 leading-normal text-ink-soft">{onlineMessage}</p>
-                ) : null}
-              </>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-2xs leading-normal text-ink-faint">
+                <span>搜索服务未配置（需要 Key）</span>
+                <Button size="sm" variant="ghost" onClick={() => navigate("/settings")}>
+                  去设置
+                </Button>
+              </div>
             )}
+            {onlineMessage ? (
+              <p className="mt-1.5 leading-normal text-ink-soft">{onlineMessage}</p>
+            ) : null}
           </div>
         ) : null}
 

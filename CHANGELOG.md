@@ -2,6 +2,32 @@
 
 > 面向用户与维护者的变更摘要；详细过程见 `PROJECT_LOG.md`。
 
+## [1.0.6] — 2026-11-09
+
+联网抓取链路：单 URL 抓取入候选池、URL 守卫与逐跳重定向校验、正文提取与近似去重；搜索采集支持 Tavily / Brave / Bing / custom 四种服务。
+
+### Added
+
+- 单 URL 抓取：粘贴公开 http/https 网址，抓取正文写入「候选池」待审核。
+- URL 守卫：只允许 http/https；拒绝带用户名密码、本机 / 内网 / 链路本地 / 保留地址与内部域名；重定向逐跳校验，最多 5 跳；单页响应上限 2 MB；只接受 `text/html`、`application/xhtml+xml`、`text/plain`。
+- 正文提取：剥离 script / style / noscript / 注释 / SVG，取 title、meta description 与正文。
+- 去重：同一规范化 URL 在非 rejected 候选中存在则不重复创建；内容近似（字符二元组 Jaccard ≥ 0.85 且两边文本 ≥ 120 字）也判重。
+- 搜索采集：支持 Tavily / Brave / Bing / custom 四种搜索服务配置，命中后逐条抓取入候选池。
+- 抓取失败逐条返回 `{ url, outcome, code, message }`，批量汇总 created / duplicates / failed，不静默吞。
+- 后端新增 `AppError::Fetch`，错误码：`E_URL_INVALID`、`E_URL_SCHEME`、`E_URL_BLOCKED`、`E_URL_REDIRECT`、`E_FETCH_TIMEOUT`、`E_NETWORK`、`E_HTTP_STATUS`、`E_CONTENT_TYPE`、`E_TOO_LARGE`、`E_EMPTY_CONTENT`、`E_SEARCH_UNAVAILABLE`、`E_SEARCH_PARSE`。
+
+### Changed
+
+- 抓到的 HTML 一律以 `html.state = "unclean"`、`needsCleaning = true` 入库，只存 ≤ 16 KB 摘要，不执行、不渲染。
+- 版本号同步至 1.0.6（`package.json` / `tauri.conf.json`；`Cargo.toml` / `Cargo.lock` 原已为 1.0.6）。
+
+### Known Issues
+
+- 真实第三方搜索 Provider（Tavily / Brave / Bing）与真实第三方大模型服务的端到端调用**未验证**：本地只有假 OpenAI 兼容服务器测试，无真实 Key。
+- AI 工作台分析与搜索采集均需要配置 Key；未配置时只能粘贴网址抓取。
+- 安装包未签名，首次运行可能出现 SmartScreen 提示。
+- 仅提供 Windows x64；macOS 未验证。
+
 ## [1.0.3] — 2026-11-09
 
 安装器升级路径修正：旧版本上双击新包即可覆盖升级，不再弹出「安装前卸载 / 请勿卸载」二选一页。

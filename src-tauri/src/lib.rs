@@ -1,10 +1,15 @@
+mod ai;
 mod commands;
 mod config;
 mod db;
 mod error;
+mod fetch;
+#[cfg(test)]
+mod e2e;
 mod html_sanitize;
 mod preview;
 mod search;
+mod secrets;
 mod sha256;
 
 use tauri::Manager;
@@ -46,6 +51,16 @@ fn dispatch(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
             commands::candidates::candidates_create,
             commands::candidates::candidates_reject,
             commands::candidates::candidates_approve,
+            commands::ai::ai_settings_get,
+            commands::ai::ai_provider_set,
+            commands::ai::ai_search_set,
+            commands::ai::ai_credential_set,
+            commands::ai::ai_credential_clear,
+            commands::ai::ai_test_connection,
+            commands::ai::ai_analyze,
+            commands::ai::ai_config_export,
+            commands::discovery::discovery_fetch_url,
+            commands::discovery::discovery_search,
             commands::system::app_info,
         ]
     }
@@ -54,6 +69,10 @@ fn dispatch(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
 }
 
 pub fn run() {
+    // reqwest 0.13 的 rustls-no-provider 组合要求进程级 crypto provider；
+    // ring provider 在任何 AI 请求构建 Client 前安装一次（幂等）
+    ai::ensure_tls_provider();
+
     // 应用自定义命令不受 capability ACL 约束，必须在派发层按窗口标签拦截：
     // 预览窗口（preview-html）只渲染清洗后的静态 HTML，不允许触达任何 IPC。
     preview::register(tauri::Builder::default())
