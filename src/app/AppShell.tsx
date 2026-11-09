@@ -412,7 +412,7 @@ export function AppShell() {
               <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-accent" />
               <span className="text-2xs text-ink-faint">SQLite · 本地模式</span>
               <span className="ml-auto font-mono text-2xs text-ink-faint">
-                v{appInfo.data?.appVersion ?? "1.0.2"}
+                v{appInfo.data?.appVersion ?? "1.0.3"}
               </span>
             </div>
           </div>

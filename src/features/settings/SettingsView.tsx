@@ -117,7 +117,7 @@ export function SettingsView() {
         <div className="mt-1 flex items-center gap-2">
           <h1 className="text-lg font-semibold tracking-tight text-ink">设置</h1>
           <span className="rounded-pill border border-line px-2 py-0.5 font-mono text-2xs text-ink-faint">
-            {appInfo.data?.appVersion ? `v${appInfo.data.appVersion}` : "v1.0.2"}
+            {appInfo.data?.appVersion ? `v${appInfo.data.appVersion}` : "v1.0.3"}
           </span>
         </div>
         <p className="mt-1 text-meta leading-normal text-ink-faint">
@@ -286,7 +286,7 @@ export function SettingsView() {
             <div className="border-b border-line py-3">
               <div className="text-sm font-semibold tracking-[0.08em] text-ink">界序 INTERFACE</div>
               <p className="mt-0.5 text-xs leading-normal text-ink-faint">
-                版本 {appInfo.data?.appVersion ?? "1.0.2"} · 本项目以 MIT 许可证发布；全部示例案例与演示为自绘。
+                版本 {appInfo.data?.appVersion ?? "1.0.3"} · 本项目以 MIT 许可证发布；全部示例案例与演示为自绘。
               </p>
               <p className="mt-1 text-2xs leading-normal text-ink-faint">
                 依赖白名单：{LICENSE_POLICY.allowed.join(" / ")}；禁止 {LICENSE_POLICY.forbidden.join(" / ")}。
