@@ -481,6 +481,8 @@ export const SETTINGS = {
   "ui.panel.leftWidth": "236",
   "ui.panel.middleWidth": "400",
   "ui.themeMode": "system",
+  // 既有截图与回归都按「已看过引导」跑，避免首启遮罩挡住交互
+  "ui.onboarding": "v1:done",
 };
 
 export const AI_SETTINGS = {

@@ -30,6 +30,7 @@ interface UiState {
   viewMode: ListView;
   activeCollectionId: string | null;
   paletteOpen: boolean;
+  onboardingOpen: boolean;
   /** 命令面板跨路由打开案例的一次性请求 */
   pendingCaseId: string | null;
   /** 命令面板跨路由新建案例的一次性请求 */
@@ -46,6 +47,8 @@ interface UiState {
   setActiveCollection: (id: string | null) => void;
   openPalette: () => void;
   closePalette: () => void;
+  openOnboarding: () => void;
+  closeOnboarding: () => void;
   requestOpenCase: (id: string) => void;
   clearPendingCase: () => void;
   requestCreate: (kind: CaseKind) => void;
@@ -73,6 +76,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   viewMode: "grid",
   activeCollectionId: null,
   paletteOpen: false,
+  onboardingOpen: false,
   pendingCaseId: null,
   pendingCreateKind: null,
 
@@ -105,6 +109,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   setActiveCollection: (id) => set({ activeCollectionId: id }),
   openPalette: () => set({ paletteOpen: true }),
   closePalette: () => set({ paletteOpen: false }),
+  openOnboarding: () => set({ onboardingOpen: true }),
+  closeOnboarding: () => set({ onboardingOpen: false }),
   requestOpenCase: (id) => set({ pendingCaseId: id }),
   clearPendingCase: () => set({ pendingCaseId: null }),
   requestCreate: (kind) => set({ pendingCreateKind: kind }),

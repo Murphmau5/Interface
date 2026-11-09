@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   ChevronRight,
+  Compass,
   Database,
   Download,
   Info,
@@ -41,6 +42,7 @@ type SettingsSectionId =
   | "appearance"
   | "ai"
   | "shortcuts"
+  | "onboarding"
   | "layout"
   | "content"
   | "storage"
@@ -90,6 +92,14 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
         description: "只读展示当前版本实际生效的按键；命令面板与全局快捷键共用这一份口径。",
         icon: Keyboard,
         keywords: ["快捷键", "键盘", "命令面板", "Ctrl", "Esc", "搜索", "新建", "导出"],
+      },
+      {
+        id: "onboarding",
+        label: "使用引导",
+        title: "使用引导",
+        description: "三段说明：案例存的是什么、三栏各管什么、参数改动如何生效并保存。首次启动自动出现一次，之后可在这里重新打开。",
+        icon: Compass,
+        keywords: ["引导", "新手", "教程", "首次", "onboarding", "三栏", "参数"],
       },
       {
         id: "ai",
@@ -216,10 +226,12 @@ export function SettingsView() {
   const settings = useSettings();
   const appInfo = useAppInfo();
   const setSetting = useSetSetting();
+  const openOnboarding = useUiStore((state) => state.openOnboarding);
 
   const [query, setQuery] = useState("");
   const [sectionId, setSectionId] = useState<SettingsSectionId>("appearance");
   const storedNote = settings.data?.[SETTINGS_KEYS.note] ?? "";
+  const onboardingRecord = settings.data?.[SETTINGS_KEYS.onboarding] ?? null;
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
 
@@ -367,6 +379,43 @@ export function SettingsView() {
                   ))}
                 </tbody>
               </table>
+            </SettingCard>
+          </>
+        );
+      case "onboarding":
+        return (
+          <>
+            <SettingCard
+              title="首次使用引导"
+              description="首次启动自动出现一次；跳过或看完都会写入标记，不会再次弹出。"
+            >
+              <SettingRow
+                title="重新查看引导"
+                description="三段：这里的案例是什么、三栏各管什么、参数改动如何生效并保存。只讲怎么用。"
+                control={
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<Compass size={12} strokeWidth={2} aria-hidden />}
+                    onClick={openOnboarding}
+                  >
+                    打开引导
+                  </Button>
+                }
+              />
+              <SettingRow
+                title="记录状态"
+                description={`标记键 ${SETTINGS_KEYS.onboarding}，写入本地 settings 表。`}
+                control={
+                  <span className="settings-row-value">
+                    {onboardingRecord === "v1:done"
+                      ? "已看完"
+                      : onboardingRecord === "v1:skipped"
+                        ? "已跳过"
+                        : "未记录"}
+                  </span>
+                }
+              />
             </SettingCard>
           </>
         );

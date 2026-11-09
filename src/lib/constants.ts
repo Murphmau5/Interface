@@ -108,6 +108,7 @@ export const SETTINGS_KEYS = {
   discoveryQuery: "lab.discovery.query",
   contentFeedUrl: "content.feedUrl",
   contentTrustedKeys: "content.trustedKeys",
+  onboarding: "ui.onboarding",
 } as const;
 
 export const PANEL_LIMITS = {

@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/Input";
 import { TitleBar } from "@/components/layout/TitleBar";
 import { ThemeController } from "@/app/ThemeController";
 import { CommandPalette } from "@/features/commands/CommandPalette";
+import { OnboardingGate } from "@/features/onboarding/OnboardingGuide";
 import { useAppInfo, useSettings, useSetSetting } from "@/features/settings/api";
 import { useCaseCounts, useCatalog, useCollections, useCreateCollection, useViewCounts } from "@/features/cases/api";
 import { runCaseAction } from "@/lib/caseActions";
@@ -147,6 +148,7 @@ export function AppShell() {
   useEffect(() => {
     if (!navOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (useUiStore.getState().onboardingOpen) return;
       if (event.key === "Escape" || (event.altKey && event.key === "ArrowLeft")) {
         event.preventDefault();
         if (activeSection && categoryBySection[activeSection]) {
@@ -184,6 +186,9 @@ export function AppShell() {
     const onKeyDown = (event: KeyboardEvent) => {
       const modifier = event.ctrlKey || event.metaKey;
       const key = event.key.toLowerCase();
+
+      // 引导是模态遮罩，键位交给它自己处理
+      if (useUiStore.getState().onboardingOpen) return;
 
       if (modifier && key === "k") {
         event.preventDefault();
@@ -585,6 +590,7 @@ export function AppShell() {
         </main>
       </div>
       {paletteOpen ? <CommandPalette /> : null}
+      <OnboardingGate />
     </div>
   );
 }
