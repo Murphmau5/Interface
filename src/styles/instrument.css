@@ -334,23 +334,25 @@
 
   .confidence-dot {
     display: inline-block;
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     flex: none;
     border-radius: var(--radius-pill);
-    background-color: var(--text-tertiary);
+    background-color: var(--dot-color, var(--text-tertiary));
+    box-shadow: 0 0 0 2px
+      color-mix(in srgb, var(--dot-color, var(--text-tertiary)) 22%, transparent);
   }
 
   .confidence-dot[data-tone="verified"] {
-    background-color: var(--accent);
+    --dot-color: var(--accent);
   }
 
   .confidence-dot[data-tone="estimated"] {
-    background-color: var(--status-warning);
+    --dot-color: var(--status-warning);
   }
 
   .confidence-dot[data-tone="user_defined"] {
-    background-color: var(--status-info);
+    --dot-color: var(--status-info);
   }
 
   .table-shell {

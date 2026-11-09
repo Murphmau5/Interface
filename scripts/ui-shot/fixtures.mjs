@@ -3,6 +3,8 @@
  * 与 src/lib/ipc.ts、src/lib/preview.ts、src-tauri/migrations/0003_categories.sql 对齐。
  */
 
+import { DatabaseSync } from "node:sqlite";
+
 const CATEGORY_GROUPS = {
   style: [
     {
@@ -500,7 +502,7 @@ export const AI_SETTINGS = {
 };
 
 export const APP_INFO = {
-  appVersion: "1.0.8",
+  appVersion: "1.0.9",
   dataDir: "C:\\Users\\Demo\\AppData\\Roaming\\jiexu",
   dbPath: "C:\\Users\\Demo\\AppData\\Roaming\\jiexu\\library.db",
   platform: "windows",
@@ -544,6 +546,52 @@ export function buildFixtures() {
     settings: SETTINGS,
     aiSettings: AI_SETTINGS,
     appInfo: APP_INFO,
+  };
+}
+
+/**
+ * 真实库模式：只读打开应用 SQLite，把 cases 表映射成同样的数据结构。
+ * 收藏、合集、标签都按库里实际内容来，不用演示数据补齐。
+ */
+export function loadRealFixtures() {
+  const dbPath = `${process.env.APPDATA}\\com.jiexu.interface\\app.db`;
+  const db = new DatabaseSync(dbPath, { readOnly: true });
+  const rows = db
+    .prepare(
+      `select id, kind, title, summary, payload_json, confidence, is_favorite,
+              created_at, updated_at, category_id, platform, component_layer
+         from cases
+        where deleted_at is null
+        order by updated_at desc`,
+    )
+    .all();
+  db.close();
+
+  const cases = rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    summary: row.summary,
+    payloadJson: row.payload_json,
+    confidence: row.confidence,
+    isFavorite: row.is_favorite === 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    categoryId: row.category_id,
+    platform: row.platform,
+    componentLayer: row.component_layer,
+  }));
+
+  return {
+    cases,
+    catalog: buildCatalog(cases),
+    collections: [],
+    collectionIds: {},
+    tags: [],
+    tagsByCase: {},
+    settings: SETTINGS,
+    aiSettings: AI_SETTINGS,
+    appInfo: { ...APP_INFO, caseCount: cases.length },
   };
 }
 

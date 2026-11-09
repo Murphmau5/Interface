@@ -3,21 +3,22 @@
    仪器台：近黑背景、冷灰面板、1px 半透明描边
    ============================================================ */
 :root[data-theme="dark"] {
-  --theme-bg: #07090c;
-  --theme-surface: #0b1014;
-  --theme-surface-raised: #10161c;
-  --theme-surface-sunken: #080b0e;
+  /* 三级明度阶梯：画布最暗 → 中栏 → 左栏/卡片最亮（L* 约 1 / 5 / 15） */
+  --theme-bg: #05080b;
+  --theme-surface: #0c1319;
+  --theme-surface-raised: #1a2530;
+  --theme-surface-sunken: #010203;
 
-  --theme-border: rgba(255, 255, 255, 0.06);
-  --theme-border-strong: rgba(255, 255, 255, 0.12);
+  --theme-border: rgba(255, 255, 255, 0.08);
+  --theme-border-strong: rgba(255, 255, 255, 0.17);
 
   --theme-text-primary: #e8eef3;
-  --theme-text-secondary: #97a5b2;
-  --theme-text-tertiary: #5f6e7b;
+  --theme-text-secondary: #9dabb8;
+  --theme-text-tertiary: #6b7a87;
 
   --theme-accent: #7fd3e8;
-  --theme-accent-soft: rgba(127, 211, 232, 0.1);
-  --theme-accent-line: rgba(127, 211, 232, 0.36);
+  --theme-accent-soft: rgba(127, 211, 232, 0.14);
+  --theme-accent-line: rgba(127, 211, 232, 0.5);
   --theme-accent-ink: #041417;
 
   --theme-status-success: #79c7a9;
@@ -27,27 +28,27 @@
 
   --theme-shadow-ambient: 0 1px 2px rgba(0, 0, 0, 0.55);
   --theme-shadow-panel: 0 20px 48px rgba(0, 0, 0, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  --theme-grid-line: rgba(255, 255, 255, 0.035);
+  --theme-grid-line: rgba(255, 255, 255, 0.05);
   --theme-scrim: rgba(2, 4, 6, 0.66);
 
   /* 仪器台：面板高光、控件底、选中环 */
-  --theme-panel-highlight: rgba(255, 255, 255, 0.045);
-  --theme-control-bg: #0d1318;
-  --theme-control-line: rgba(255, 255, 255, 0.1);
-  --theme-rail-active-ring: rgba(127, 211, 232, 0.28);
+  --theme-panel-highlight: rgba(255, 255, 255, 0.06);
+  --theme-control-bg: #121a22;
+  --theme-control-line: rgba(255, 255, 255, 0.14);
+  --theme-rail-active-ring: rgba(127, 211, 232, 0.42);
 
   /* 自绘标题栏与可点击行 */
-  --theme-titlebar-bg: #0b1014;
-  --theme-titlebar-border: rgba(255, 255, 255, 0.06);
+  --theme-titlebar-bg: #1a2530;
+  --theme-titlebar-border: rgba(255, 255, 255, 0.08);
   --theme-titlebar-ink: #e8eef3;
-  --theme-titlebar-ink-soft: #97a5b2;
-  --theme-titlebar-hover-bg: rgba(255, 255, 255, 0.08);
-  --theme-titlebar-active-bg: rgba(255, 255, 255, 0.13);
+  --theme-titlebar-ink-soft: #9dabb8;
+  --theme-titlebar-hover-bg: rgba(255, 255, 255, 0.09);
+  --theme-titlebar-active-bg: rgba(255, 255, 255, 0.14);
   --theme-titlebar-close-hover-bg: #c42b1c;
   --theme-titlebar-close-hover-ink: #ffffff;
-  --theme-row-hover-bg: rgba(255, 255, 255, 0.04);
+  --theme-row-hover-bg: rgba(255, 255, 255, 0.06);
 
   /* 预览示例自绘用的双主题样品色（与界面当前主题无关） */
   --theme-demo-dark-bg: #07090c;

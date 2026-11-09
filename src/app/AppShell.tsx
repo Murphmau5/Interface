@@ -237,7 +237,7 @@ export function AppShell() {
       <ThemeController />
       <TitleBar railWidth={leftWidth} />
       <div className="flex min-h-0 w-full flex-1 overflow-hidden">
-        <aside style={{ width: leftWidth }} className="flex min-h-0 shrink-0 flex-col bg-surface">
+        <aside style={{ width: leftWidth }} className="flex min-h-0 shrink-0 flex-col bg-raised">
         <div className="nav-stack">
           {/* 一级层：内容域 + 工具位 + 收藏/最近 */}
           <div
@@ -393,7 +393,7 @@ export function AppShell() {
               <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-accent" />
               <span className="text-2xs text-ink-faint">本地库 · SQLite</span>
               <span className="ml-auto font-mono text-2xs text-ink-faint">
-                v{appInfo.data?.appVersion ?? "1.0.8"}
+                v{appInfo.data?.appVersion ?? "1.0.9"}
               </span>
             </div>
           </div>

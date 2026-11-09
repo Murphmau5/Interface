@@ -4,16 +4,18 @@
  * 不依赖任何新增 npm 包，使用 Node 24 内置 fetch / WebSocket。
  *
  * 用法：
- *   node scripts/ui-shot/shot.mjs --theme light --out .screenshots/1.0.8/main-light.png
- *   node scripts/ui-shot/shot.mjs --theme dark  --out .screenshots/1.0.8/main-dark.png
+ *   node scripts/ui-shot/shot.mjs --theme light --out .screenshots/1.0.9/main-light.png
+ *   node scripts/ui-shot/shot.mjs --theme dark  --out .screenshots/1.0.9/main-dark.png
  *   node scripts/ui-shot/shot.mjs --probe
+ *   node scripts/ui-shot/shot.mjs --fixtures real --audit
  * 选项：
  *   --theme light|dark   模拟 prefers-color-scheme（应用 themeMode=system）
- *   --out <path>         截图输出路径（默认 .screenshots/1.0.8/main-<theme>.png）
+ *   --out <path>         截图输出路径（默认 .screenshots/1.0.9/main-<theme>.png）
  *   --select <index>     点选第 N 张卡片（默认选中第一条）
  *   --view grid|table    列表视图（默认 grid）
  *   --route <hash>       路由（默认 #/library）
  *   --probe              执行无窗口压测并输出 4 张探针图
+ *   --audit              逐个 kind 检查预览舞台/场景主体占比并各截一张图
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -21,13 +23,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildFixtures, installTauriStub } from "./fixtures.mjs";
+import { buildFixtures, installTauriStub, loadRealFixtures } from "./fixtures.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 const ORIGIN = "http://127.0.0.1:4173";
 const PROFILE_DIR = path.join(ROOT, ".screenshots", ".edge-profile");
-const PROBE_DIR = path.join(ROOT, ".screenshots", "1.0.8", "_probe");
+const PROBE_DIR = path.join(ROOT, ".screenshots", "1.0.9", "_probe");
 
 const log = (...args) => console.log("[ui-shot]", ...args);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -40,11 +42,14 @@ function parseArgs(argv) {
     view: "grid",
     route: "#/library",
     probe: false,
+    audit: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--probe") options.probe = true;
+    else if (arg === "--audit") options.audit = true;
     else if (arg === "--skip-build") options.skipBuild = true;
+    else if (arg === "--fixtures") options.fixtures = argv[++i] === "real" ? "real" : "demo";
     else if (arg === "--theme") options.theme = argv[++i] === "dark" ? "dark" : "light";
     else if (arg === "--out") options.out = argv[++i];
     else if (arg === "--select") options.select = Number(argv[++i]);
@@ -283,7 +288,8 @@ async function preparePage(cdp, sessionId, options) {
   await cdp.send("Page.enable", {}, sessionId);
   await cdp.send("Runtime.enable", {}, sessionId);
 
-  const source = `(${installTauriStub.toString()})(${JSON.stringify(buildFixtures())});`;
+  const data = options.fixtures === "real" ? loadRealFixtures() : buildFixtures();
+  const source = `(${installTauriStub.toString()})(${JSON.stringify(data)});`;
   await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source }, sessionId);
   await cdp.send(
     "Emulation.setDeviceMetricsOverride",
@@ -852,6 +858,134 @@ async function runProbe(cdp, sessionId) {
   return report;
 }
 
+const AUDIT_EXPRESSION = `(() => {
+  const round = (value) => Math.round(value * 10) / 10;
+  const stage = document.querySelector(".preview-stage");
+  if (!stage) return { error: "找不到 .preview-stage" };
+  const scene = stage.querySelector('.pv-scene[data-bench="true"]');
+  if (!scene) return { error: "找不到 .pv-scene[data-bench=true]" };
+  const s = stage.getBoundingClientRect();
+  const b = scene.getBoundingClientRect();
+  const overflow = {
+    left: round(Math.max(0, s.left - b.left)),
+    top: round(Math.max(0, s.top - b.top)),
+    right: round(Math.max(0, b.right - s.right)),
+    bottom: round(Math.max(0, b.bottom - s.bottom)),
+  };
+  return {
+    kind: stage.getAttribute("data-kind"),
+    stage: { x: round(s.left), y: round(s.top), w: round(s.width), h: round(s.height) },
+    scene: { x: round(b.left), y: round(b.top), w: round(b.width), h: round(b.height) },
+    heightRatio: round((b.height / s.height) * 100),
+    centerOffset: round(((b.left + b.width / 2 - (s.left + s.width / 2)) / s.width) * 100),
+    overflow,
+    overflowTotal: round(Math.max(...Object.values(overflow))),
+  };
+})()`;
+
+async function runAudit(cdp, sessionId) {
+  const entries = [];
+  const seen = new Set();
+  const total = await evaluate(
+    cdp,
+    sessionId,
+    `document.querySelectorAll("#content-list .list-card").length`,
+    "audit.count",
+  );
+  log(`审计卡片数：${total}`);
+
+  for (let index = 0; index < total; index += 1) {
+    const kind = await evaluate(
+      cdp,
+      sessionId,
+      `(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const card = document.querySelectorAll("#content-list .list-card")[${index}];
+        if (!card) return null;
+        card.scrollIntoView({ block: "nearest" });
+        await wait(60);
+        card.click();
+        await wait(560);
+        const stage = document.querySelector(".preview-stage");
+        return stage ? stage.getAttribute("data-kind") : null;
+      })()`,
+      "audit.select",
+    );
+    if (!kind || seen.has(kind)) continue;
+    seen.add(kind);
+
+    const frozen = await evaluate(
+      cdp,
+      sessionId,
+      `(() => {
+        const stage = document.querySelector(".preview-stage");
+        if (!stage) return 0;
+        const fraction = ${kind === "feedback" ? 0.22 : kind === "theme" ? 0.62 : 0.45};
+        let count = 0;
+        for (const animation of document.getAnimations()) {
+          const target = animation.effect && animation.effect.target;
+          if (!(target instanceof Element) || !stage.contains(target)) continue;
+          try {
+            const timing = animation.effect.getComputedTiming();
+            const duration = Number(timing.duration) || 0;
+            const delay = Number(timing.delay) || 0;
+            animation.pause();
+            animation.currentTime = delay + duration * fraction;
+            count += 1;
+          } catch {
+            // 跳过不可暂停的动画
+          }
+        }
+        return count;
+      })()`,
+      "audit.freeze",
+    );
+    log(`${kind}：冻结 ${frozen} 个舞台动画用于截图`);
+
+    const metrics = await evaluate(cdp, sessionId, AUDIT_EXPRESSION, "audit.measure");
+    if (metrics.error) throw new Error(`审计 ${kind} 失败：${metrics.error}`);
+    const file = path.join(PROBE_DIR, `audit-${kind}.png`);
+    const shot = await capture(cdp, sessionId, file);
+    entries.push({ ...metrics, file: path.relative(ROOT, file), size: shot.size });
+  }
+
+  entries.sort((a, b) => a.kind.localeCompare(b.kind));
+  return entries;
+}
+
+function summarizeAudit(entries) {
+  console.log("\n=== 预览舞台审计 ===");
+  console.log(
+    "kind       舞台(W×H)      场景(W×H)      高度占比   中心偏差   溢出(L/T/R/B)        截图",
+  );
+  let failures = 0;
+  for (const entry of entries) {
+    const pass =
+      entry.heightRatio >= 60 &&
+      Math.abs(entry.centerOffset) <= 2 &&
+      entry.overflowTotal <= 1;
+    if (!pass) failures += 1;
+    console.log(
+      [
+        entry.kind.padEnd(10),
+        `${entry.stage.w}×${entry.stage.h}`.padEnd(14),
+        `${entry.scene.w}×${entry.scene.h}`.padEnd(14),
+        `${entry.heightRatio.toFixed(1)}%`.padEnd(10),
+        `${entry.centerOffset.toFixed(1)}%`.padEnd(10),
+        `${entry.overflow.left}/${entry.overflow.top}/${entry.overflow.right}/${entry.overflow.bottom}`.padEnd(21),
+        `${pass ? "PASS" : "FAIL"} ${entry.file}`,
+      ].join(" "),
+    );
+  }
+  console.log(
+    `结论：${entries.length === 5 ? "5 个 kind 全部采到" : `仅采到 ${entries.length} 个 kind`}，${
+      failures ? `${failures} 个不达标` : "全部达标"
+    }`,
+  );
+  console.log("====================\n");
+  console.log(JSON.stringify(entries, null, 2));
+}
+
 function cleanupProcess(child, label) {
   if (!child || child.killed || child.exitCode !== null) return;
   log(`结束 ${label} 进程 ${child.pid}`);
@@ -952,13 +1086,16 @@ async function main() {
     const sessionId = await attachPage(cdp);
     await preparePage(cdp, sessionId, options);
 
-    if (options.probe) {
+    if (options.audit) {
+      const entries = await runAudit(cdp, sessionId);
+      summarizeAudit(entries);
+    } else if (options.probe) {
       const report = await runProbe(cdp, sessionId);
       summarizeReport(report, options);
     } else {
       const outFile = path.resolve(
         ROOT,
-        options.out || `.screenshots/1.0.8/main-${options.theme}.png`,
+        options.out || `.screenshots/1.0.9/main-${options.theme}.png`,
       );
       const shot = await capture(cdp, sessionId, outFile);
       const state = await evaluate(

@@ -3,51 +3,51 @@
    中性灰统一向冷蓝偏移（hue 约 220），避免发灰发脏
    ============================================================ */
 :root[data-theme="light"] {
-  --theme-bg: #eef2f5;
-  --theme-surface: #f5f8fa;
+  --theme-bg: #e6edf2;
+  --theme-surface: #f6f9fb;
   --theme-surface-raised: #ffffff;
-  --theme-surface-sunken: #e7edf1;
+  --theme-surface-sunken: #dde7ee;
 
-  --theme-border: rgba(18, 38, 54, 0.1);
-  --theme-border-strong: rgba(18, 38, 54, 0.18);
+  --theme-border: rgba(18, 38, 54, 0.14);
+  --theme-border-strong: rgba(18, 38, 54, 0.26);
 
   --theme-text-primary: #14202b;
-  --theme-text-secondary: #546575;
-  --theme-text-tertiary: #7c8b99;
+  --theme-text-secondary: #4d5f6f;
+  --theme-text-tertiary: #70808e;
 
-  --theme-accent: #0e7a8a;
-  --theme-accent-soft: rgba(14, 122, 138, 0.08);
-  --theme-accent-line: rgba(14, 122, 138, 0.28);
+  --theme-accent: #0a6f7d;
+  --theme-accent-soft: rgba(10, 111, 125, 0.15);
+  --theme-accent-line: rgba(10, 111, 125, 0.55);
   --theme-accent-ink: #f4fcfd;
 
-  --theme-status-success: #26755c;
-  --theme-status-warning: #9a6a16;
-  --theme-status-danger: #a63c3c;
-  --theme-status-info: #2e678f;
+  --theme-status-success: #14664a;
+  --theme-status-warning: #8a5a0b;
+  --theme-status-danger: #9d2b2b;
+  --theme-status-info: #1b5b87;
 
-  --theme-shadow-ambient: 0 1px 2px rgba(20, 40, 60, 0.08);
-  --theme-shadow-panel: 0 18px 40px rgba(20, 40, 60, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --theme-shadow-ambient: 0 1px 2px rgba(20, 40, 60, 0.1);
+  --theme-shadow-panel: 0 18px 40px rgba(20, 40, 60, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
 
-  --theme-grid-line: rgba(18, 38, 54, 0.05);
+  --theme-grid-line: rgba(18, 38, 54, 0.08);
   --theme-scrim: rgba(28, 44, 58, 0.3);
 
   /* 仪器台：面板高光、控件底、选中环 */
-  --theme-panel-highlight: rgba(255, 255, 255, 0.78);
+  --theme-panel-highlight: rgba(255, 255, 255, 0.85);
   --theme-control-bg: #ffffff;
-  --theme-control-line: rgba(18, 38, 54, 0.13);
-  --theme-rail-active-ring: rgba(14, 122, 138, 0.24);
+  --theme-control-line: rgba(18, 38, 54, 0.18);
+  --theme-rail-active-ring: rgba(10, 111, 125, 0.45);
 
   /* 自绘标题栏与可点击行 */
-  --theme-titlebar-bg: #f5f8fa;
-  --theme-titlebar-border: rgba(18, 38, 54, 0.1);
+  --theme-titlebar-bg: #f6f9fb;
+  --theme-titlebar-border: rgba(18, 38, 54, 0.14);
   --theme-titlebar-ink: #14202b;
-  --theme-titlebar-ink-soft: #546575;
-  --theme-titlebar-hover-bg: rgba(18, 38, 54, 0.06);
-  --theme-titlebar-active-bg: rgba(18, 38, 54, 0.11);
+  --theme-titlebar-ink-soft: #4d5f6f;
+  --theme-titlebar-hover-bg: rgba(18, 38, 54, 0.07);
+  --theme-titlebar-active-bg: rgba(18, 38, 54, 0.12);
   --theme-titlebar-close-hover-bg: #c42b1c;
   --theme-titlebar-close-hover-ink: #ffffff;
-  --theme-row-hover-bg: rgba(18, 38, 54, 0.04);
+  --theme-row-hover-bg: rgba(18, 38, 54, 0.05);
 
   /* 预览示例自绘用的双主题样品色（与界面当前主题无关） */
   --theme-demo-dark-bg: #07090c;

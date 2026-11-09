@@ -14,7 +14,7 @@
   display: flex;
   min-height: 0;
   flex-direction: column;
-  background-color: var(--surface);
+  background-color: var(--surface-raised);
   will-change: transform, opacity;
   transition:
     transform var(--motion-nav) var(--ease-nav),

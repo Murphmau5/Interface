@@ -318,6 +318,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
             ) : (
               <Button
                 size="sm"
+                variant="primary"
                 icon={<Plus size={13} strokeWidth={1.8} aria-hidden />}
                 onClick={() => setCreating(true)}
               >

@@ -1,7 +1,11 @@
 import { memo } from "react";
 
 import { PreviewRenderer } from "@/features/preview/renderers";
-import type { PreviewSpec } from "@/lib/preview";
+import {
+  PREVIEW_KIND_LABELS,
+  previewTitle,
+  type PreviewSpec,
+} from "@/lib/preview";
 import { cn } from "@/lib/utils";
 
 interface PreviewStageProps {
@@ -33,13 +37,23 @@ function PreviewStageBase({
     >
       <div className="pv-grid" aria-hidden />
       <div key={revision} className="absolute inset-0">
-        <PreviewRenderer
-          spec={spec}
-          playing={playing}
-          loop={loop}
-          revision={revision}
-          interactive={interactive}
-        />
+        <div className="pv-scene" data-bench={interactive ? "true" : "false"}>
+          {interactive ? (
+            <div className="pv-scene-bar" aria-hidden>
+              <span className="pv-scene-title">{previewTitle(spec)}</span>
+              <span className="pv-scene-readout">{PREVIEW_KIND_LABELS[spec.kind]}</span>
+            </div>
+          ) : null}
+          <div className="pv-scene-body">
+            <PreviewRenderer
+              spec={spec}
+              playing={playing}
+              loop={loop}
+              revision={revision}
+              interactive={interactive}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

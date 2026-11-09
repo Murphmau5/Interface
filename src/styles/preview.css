@@ -20,6 +20,78 @@
   pointer-events: none;
 }
 
+/* ---- 演示板：右栏预览的场景主体，四周留 9% 演示边距 ---- */
+.pv-scene,
+.pv-scene-body {
+  position: absolute;
+  inset: 0;
+}
+
+.pv-scene[data-bench="true"] {
+  inset: 9%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  box-shadow: inset 0 1px 0 var(--panel-highlight);
+}
+
+.pv-scene[data-bench="true"] .pv-scene-body {
+  top: 26px;
+}
+
+.pv-scene[data-bench="true"]::before,
+.pv-scene[data-bench="true"]::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  width: 9px;
+  height: 9px;
+  border-color: var(--border-strong);
+  pointer-events: none;
+}
+
+.pv-scene[data-bench="true"]::before {
+  left: 5px;
+  top: 5px;
+  border-left: 1px solid;
+  border-top: 1px solid;
+}
+
+.pv-scene[data-bench="true"]::after {
+  right: 5px;
+  bottom: 5px;
+  border-right: 1px solid;
+  border-bottom: 1px solid;
+}
+
+.pv-scene-bar {
+  display: flex;
+  height: 26px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-raised);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--tracking-label);
+}
+
+.pv-scene-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
+.pv-scene-readout {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- 动效：错峰入场 ---- */
 .pv-rows {
   position: absolute;
@@ -27,8 +99,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
-  padding: 12%;
+  gap: 8px;
+  padding: 10px;
 }
 
 .pv-row {
@@ -75,16 +147,17 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 0 10%;
+  gap: 14px;
+  padding: 10px;
 }
 
 .pv-feedback-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 104px;
-  height: 28px;
+  width: 66%;
+  max-width: 340px;
+  height: 36px;
   padding: 0 12px;
   border: 1px solid var(--pv-tone-line);
   border-radius: var(--radius-sm);
@@ -104,8 +177,9 @@
 
 .pv-feedback-axis {
   display: flex;
-  width: 68%;
-  height: 4px;
+  width: 66%;
+  max-width: 340px;
+  height: 6px;
   overflow: hidden;
   border-radius: var(--radius-pill);
   background-color: var(--surface);
@@ -166,7 +240,34 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 0 10%;
+  padding: 10px;
+}
+
+/* 控件演示台：内层测量板 + 底部刻度 */
+.pv-component::before {
+  content: "";
+  position: absolute;
+  inset: 16% 14%;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background-color: color-mix(in srgb, var(--surface-sunken) 62%, transparent);
+  pointer-events: none;
+}
+
+.pv-component::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 22px;
+  height: 3px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--border-strong) 0 1px,
+    transparent 1px 10px
+  );
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .pv-component[data-interactive="false"] {
@@ -267,11 +368,11 @@
 
 .pv-theme-layer {
   position: absolute;
-  inset: 11%;
+  inset: 6% 6% 13%;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10%;
+  padding: 8%;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   will-change: opacity;
@@ -326,19 +427,41 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  padding: 12%;
+  gap: 10px;
+  padding: 10px;
 }
 
 .pv-style-panel {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 7px;
-  width: 78%;
-  padding: 12px;
+  gap: 8px;
+  width: 100%;
+  min-height: 0;
+  padding: 14px;
   border: 1px solid var(--border);
   background-color: var(--surface-raised);
   will-change: box-shadow, opacity, transform;
+}
+
+/* 面板内的表面阶梯：让空参数下的演示板也有可见体积 */
+.pv-style-fill {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-height: 0;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background-color: var(--surface-sunken);
+}
+
+.pv-style-fill > span {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background-color: var(--surface-raised);
 }
 
 .pv-style[data-treatment="glass"] .pv-style-panel {
@@ -373,12 +496,16 @@
   width: 44%;
 }
 
-.pv-component-caption,
-.pv-style-caption {
+.pv-component-caption {
   position: absolute;
   bottom: 8px;
   left: 0;
   right: 0;
+  text-align: center;
+}
+
+.pv-style-caption {
+  flex: none;
   text-align: center;
 }
 
@@ -400,10 +527,10 @@
 
 .pv-push-page {
   position: absolute;
-  left: 14%;
-  right: 14%;
-  top: 30%;
-  height: 40%;
+  left: 8%;
+  right: 8%;
+  top: 16%;
+  height: 68%;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -415,19 +542,19 @@
 }
 
 .pv-push-page[data-depth="1"] {
-  left: 19%;
-  right: 19%;
-  top: 33%;
-  height: 34%;
+  left: 13%;
+  right: 13%;
+  top: 21%;
+  height: 58%;
   z-index: 2;
   background-color: var(--surface);
 }
 
 .pv-push-page[data-depth="2"] {
-  left: 24%;
-  right: 24%;
-  top: 36%;
-  height: 28%;
+  left: 18%;
+  right: 18%;
+  top: 26%;
+  height: 48%;
   z-index: 1;
   background-color: var(--surface-sunken);
 }
@@ -466,10 +593,10 @@
 
 .pv-share-card {
   position: absolute;
-  left: 12%;
-  top: 34%;
+  left: 8%;
+  top: 30%;
   width: 22%;
-  height: 28%;
+  height: 40%;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -495,10 +622,10 @@
 
 .pv-share-panel {
   position: absolute;
-  left: 42%;
-  right: 10%;
-  top: 22%;
-  bottom: 24%;
+  left: 44%;
+  right: 6%;
+  top: 10%;
+  bottom: 12%;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -539,6 +666,17 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
+}
+
+.pv-micro::before {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 50%;
+  height: 1px;
+  background-color: var(--border);
+  pointer-events: none;
 }
 
 .pv-micro-button {
@@ -585,8 +723,8 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
-  width: 54%;
-  padding: 12px;
+  width: 62%;
+  padding: 14px;
   border: 1px solid var(--accent-line);
   border-radius: var(--radius-sm);
   background-color: var(--surface-raised);
@@ -608,26 +746,26 @@
 }
 
 .pv-parallax-layer[data-depth="0"] {
-  left: 10%;
-  top: 46%;
-  width: 38%;
-  height: 26%;
+  left: 6%;
+  top: 44%;
+  width: 40%;
+  height: 34%;
   background-color: var(--surface);
 }
 
 .pv-parallax-layer[data-depth="1"] {
-  left: 20%;
-  top: 38%;
-  width: 46%;
-  height: 32%;
+  left: 16%;
+  top: 32%;
+  width: 52%;
+  height: 42%;
   background-color: var(--surface-raised);
 }
 
 .pv-parallax-layer[data-depth="2"] {
-  left: 34%;
-  top: 30%;
-  width: 52%;
-  height: 36%;
+  left: 30%;
+  top: 20%;
+  width: 60%;
+  height: 52%;
   border-color: var(--accent-line);
   background-color: var(--accent-soft);
 }
@@ -657,8 +795,8 @@
 }
 
 .pv-loading-track {
-  width: 54%;
-  height: 4px;
+  width: 66%;
+  height: 5px;
   overflow: hidden;
   border-radius: var(--radius-pill);
   background-color: var(--surface);
@@ -686,8 +824,10 @@
 }
 
 .pv-validation {
-  gap: 10px;
-  padding: 0 8%;
+  gap: 12px;
+  padding: 0 5%;
+  width: 100%;
+  max-width: 420px;
 }
 
 .pv-validation-field {
@@ -706,7 +846,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  height: 30px;
+  height: 38px;
   padding: 0 10px;
   border: 1.5px solid var(--pv-tone);
   border-radius: var(--radius-sm);
@@ -744,7 +884,8 @@
 
 .pv-submit {
   align-items: center;
-  gap: 14px;
+  gap: 16px;
+  width: 100%;
 }
 
 .pv-submit-button {
@@ -752,8 +893,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 114px;
-  height: 34px;
+  width: 136px;
+  height: 40px;
   border: 1px solid var(--pv-tone-line);
   border-radius: var(--radius-sm);
   background-color: var(--pv-tone-soft);
@@ -799,7 +940,7 @@
 
 .pv-confirm-scrim {
   position: absolute;
-  inset: -20%;
+  inset: -8%;
   background-color: var(--scrim);
   will-change: opacity;
 }
@@ -808,9 +949,10 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 74%;
-  padding: 12px 12px 14px;
+  gap: 8px;
+  width: 68%;
+  max-width: 380px;
+  padding: 16px 16px 18px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -831,14 +973,14 @@
 
 .pv-confirm-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .pv-confirm-cancel,
 .pv-confirm-delete {
   flex: 1;
-  height: 24px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -874,12 +1016,12 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 0 8%;
+  padding: 0 5%;
 }
 
 .pv-feedback-ring {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   flex: none;
   border: 3px solid var(--surface);
   border-top-color: var(--pv-tone);
@@ -919,9 +1061,9 @@
 
 .pv-empty-figure {
   position: relative;
-  width: 46px;
-  height: 34px;
-  margin-bottom: 4px;
+  width: 58px;
+  height: 44px;
+  margin-bottom: 6px;
   border: 1.5px solid var(--border-strong);
   border-radius: var(--radius-xs);
   background-color: var(--surface);
@@ -960,8 +1102,10 @@
 
 .pv-error {
   align-items: center;
-  gap: 10px;
-  padding: 0 8%;
+  gap: 12px;
+  padding: 0 5%;
+  width: 100%;
+  max-width: 440px;
 }
 
 .pv-error-bar {
@@ -969,7 +1113,7 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  height: 30px;
+  height: 36px;
   padding: 0 10px;
   border: 1px solid var(--pv-tone-line);
   border-radius: var(--radius-sm);
@@ -1317,7 +1461,7 @@
   border-radius: var(--radius-pill);
   background-color: var(--accent);
   color: var(--accent-ink);
-  font-size: 9px;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   will-change: transform;
@@ -1326,11 +1470,11 @@
 /* ---- 主题：多场景 ---- */
 .pv-theme-single {
   position: absolute;
-  inset: 11%;
+  inset: 6% 6% 13%;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10%;
+  padding: 8%;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -1375,12 +1519,12 @@
 
 .pv-theme-system {
   position: absolute;
-  inset: 10% 6%;
+  inset: 4% 5% 13%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding-bottom: 24px;
+  padding-bottom: 22px;
 }
 
 .pv-system-window {
@@ -1491,22 +1635,24 @@
 
 .pv-theme-brand {
   position: absolute;
-  inset: 16% 10%;
+  inset: 7% 8% 14%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .pv-brand-swatches {
   display: flex;
+  flex: 1 1 auto;
   gap: 8px;
   width: 100%;
+  min-height: 0;
 }
 
 .pv-brand-swatch {
   flex: 1;
-  height: 48px;
+  height: auto;
   border-radius: var(--radius-sm);
   will-change: transform, opacity;
 }
@@ -1538,22 +1684,24 @@
 
 .pv-theme-accent {
   position: absolute;
-  inset: 22% 8% 18%;
+  inset: 8% 8% 14%;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .pv-accent-scale {
   display: flex;
+  flex: 1 1 auto;
   gap: 3px;
   width: 100%;
+  min-height: 0;
 }
 
 .pv-accent-step {
   flex: 1;
-  height: 46px;
+  height: auto;
   border-radius: 2px;
   background-color: color-mix(
     in srgb,
@@ -1579,7 +1727,7 @@
 
 .pv-theme-override {
   position: absolute;
-  inset: 12%;
+  inset: 6% 6% 13%;
 }
 
 .pv-override-outer {
@@ -1693,10 +1841,13 @@
 
 .pv-editorial {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 10px;
-  width: 82%;
-  padding: 4% 2%;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 0;
+  padding: 6px 4px;
 }
 
 .pv-editorial-headline {
@@ -1739,11 +1890,12 @@
 
 .pv-bento {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: 1.4fr 1fr;
   grid-template-rows: 1.2fr 0.8fr;
   gap: 8px;
-  width: 78%;
-  height: 58%;
+  width: 100%;
+  min-height: 0;
 }
 
 .pv-bento-cell {
@@ -1774,15 +1926,20 @@
 
 .pv-cards {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 7px;
-  width: 74%;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 0;
 }
 
 .pv-card-item {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
   gap: 8px;
+  min-height: 0;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

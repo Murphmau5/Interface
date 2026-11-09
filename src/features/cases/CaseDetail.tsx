@@ -536,6 +536,7 @@ export function CaseDetail({
                 <Button
                   type="submit"
                   size="sm"
+                  variant="primary"
                   disabled={
                     renameCase.isPending ||
                     !draftTitle.trim() ||
@@ -559,7 +560,10 @@ export function CaseDetail({
               </form>
             ) : (
               <div className="flex items-start gap-1.5">
-                <h2 className="min-w-0 flex-1 text-lg font-semibold leading-snug tracking-tight text-ink">
+                <h2
+                  className="line-clamp-2 min-w-0 flex-1 text-lg font-semibold leading-snug tracking-tight text-ink"
+                  title={item.title}
+                >
                   {item.title}
                 </h2>
                 <button
@@ -698,7 +702,12 @@ export function CaseDetail({
                     }}
                   />
                 </div>
-                <Button type="submit" size="sm" disabled={setTags.isPending || !tagDraft.trim()}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="primary"
+                  disabled={setTags.isPending || !tagDraft.trim()}
+                >
                   添加
                 </Button>
               </form>
@@ -729,6 +738,7 @@ export function CaseDetail({
               />
               <Button
                 size="sm"
+                variant="primary"
                 disabled={!collectionChoice || addToCollection.isPending}
                 onClick={() => {
                   const target = collections.data?.find((entry) => entry.id === collectionChoice);

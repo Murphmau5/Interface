@@ -27,6 +27,11 @@ function SimplePanel({
       <span className="pv-style-chip" aria-hidden />
       <span className="pv-style-line" data-width="long" aria-hidden />
       <span className="pv-style-line" data-width="short" aria-hidden />
+      <div className="pv-style-fill" aria-hidden>
+        <span />
+        <span />
+        <span />
+      </div>
     </div>
   );
 }
@@ -46,6 +51,11 @@ function BrutalPanel({
       <span className="pv-style-line" data-width="long" aria-hidden />
       <span className="pv-style-line" data-width="short" aria-hidden />
       <span className="pv-brutal-block" data-pv-accent-block aria-hidden />
+      <div className="pv-style-fill" aria-hidden>
+        <span />
+        <span />
+        <span />
+      </div>
     </div>
   );
 }
