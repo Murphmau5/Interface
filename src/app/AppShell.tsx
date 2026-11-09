@@ -21,15 +21,18 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TitleBar } from "@/components/layout/TitleBar";
 import { ThemeController } from "@/app/ThemeController";
+import { CommandPalette } from "@/features/commands/CommandPalette";
 import { useAppInfo, useSettings, useSetSetting } from "@/features/settings/api";
 import { useCaseCounts, useCatalog, useCollections, useCreateCollection, useViewCounts } from "@/features/cases/api";
-import { PANEL_LIMITS, SETTINGS_KEYS } from "@/lib/constants";
+import { runCaseAction } from "@/lib/caseActions";
+import { PANEL_LIMITS, SETTINGS_KEYS, type CaseKind } from "@/lib/constants";
 import {
   CONTENT_SECTION_KEYS,
   NAV_SECTIONS,
   TOOL_SECTION_KEYS,
   type NavSectionKey,
 } from "@/lib/navigation";
+import { isEditableTarget } from "@/lib/shortcuts";
 import { useUiStore } from "@/stores/uiStore";
 
 const SECTION_ICONS: Record<NavSectionKey, LucideIcon> = {
@@ -92,6 +95,7 @@ export function AppShell() {
   const categoryBySection = useUiStore((state) => state.categoryBySection);
   const openNavSection = useUiStore((state) => state.openNavSection);
   const closeNavSection = useUiStore((state) => state.closeNavSection);
+  const paletteOpen = useUiStore((state) => state.paletteOpen);
   const selectCategory = useUiStore((state) => state.selectCategory);
   const clearCategory = useUiStore((state) => state.clearCategory);
   const settings = useSettings();
@@ -155,6 +159,72 @@ export function AppShell() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navOpen, activeSection, categoryBySection, clearCategory, closeNavSection]);
+
+  // 全局快捷键：命令面板、聚焦搜索、新建与导出
+  useEffect(() => {
+    const focusSearch = (): boolean => {
+      const target = document.querySelector<HTMLInputElement>("[data-search-input]");
+      if (target) {
+        target.focus();
+        target.select();
+        return true;
+      }
+      // 当前页没有搜索框时落到案例库，等挂载后再聚焦
+      navigate("/library");
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const late = document.querySelector<HTMLInputElement>("[data-search-input]");
+          late?.focus();
+          late?.select();
+        });
+      });
+      return true;
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const modifier = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+
+      if (modifier && key === "k") {
+        event.preventDefault();
+        const store = useUiStore.getState();
+        if (store.paletteOpen) store.closePalette();
+        else store.openPalette();
+        return;
+      }
+
+      // 面板打开时所有按键由面板自己处理
+      if (useUiStore.getState().paletteOpen) return;
+
+      if (modifier && key === "f") {
+        if (focusSearch()) event.preventDefault();
+        return;
+      }
+
+      if (!modifier && !event.altKey && !event.shiftKey && event.key === "/") {
+        if (isEditableTarget(event.target)) return;
+        if (focusSearch()) event.preventDefault();
+        return;
+      }
+
+      if (modifier && key === "n") {
+        event.preventDefault();
+        if (runCaseAction("createCase")) return;
+        const filterKind = useUiStore.getState().filters.kind;
+        const kind = (filterKind === "all" ? "style" : filterKind) as CaseKind;
+        useUiStore.getState().requestCreate(kind);
+        navigate(NAV_SECTIONS[kind as NavSectionKey].route);
+        return;
+      }
+
+      if (modifier && key === "e") {
+        if (runCaseAction("exportCurrent")) event.preventDefault();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navigate]);
 
   const commitLeftWidth = (width: number) => {
     setSetting.mutate(
@@ -514,6 +584,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      {paletteOpen ? <CommandPalette /> : null}
     </div>
   );
 }

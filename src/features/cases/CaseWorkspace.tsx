@@ -30,6 +30,7 @@ import {
   type CaseKind,
 } from "@/lib/constants";
 import type { CaseQueryInput } from "@/lib/ipc";
+import { caseActions } from "@/lib/caseActions";
 import type { NavSectionKey } from "@/lib/navigation";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -167,9 +168,18 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const casesQuery = useCaseQuery(queryInput);
   const facets = useCaseFacets(facetInput);
 
+  const kindScope = props.scope === "kind" ? props.kind : null;
+  const pendingCreateKind = useUiStore((state) => state.pendingCreateKind);
+  const clearPendingCreate = useUiStore((state) => state.clearPendingCreate);
+  const pendingCaseId = useUiStore((state) => state.pendingCaseId);
+  const clearPendingCase = useUiStore((state) => state.clearPendingCase);
+
   const [searchDraft, setSearchDraft] = useState(filters.search);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  // 命令面板的「新建案例」跨路由到达时，首帧就展开表单，避免闪一下空态
+  const [creating, setCreating] = useState(
+    () => kindScope !== null && pendingCreateKind === kindScope,
+  );
   const [listError, setListError] = useState<string | null>(null);
   const [urlDraft, setUrlDraft] = useState("");
   const [queryDraft, setQueryDraft] = useState("");
@@ -183,10 +193,52 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     return () => window.clearTimeout(timer);
   }, [searchDraft, filters.search, setFilter]);
 
-  const items = casesQuery.data?.items ?? [];
+  const items = useMemo(() => casesQuery.data?.items ?? [], [casesQuery.data]);
   const total = casesQuery.data?.total ?? 0;
 
-  const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+  // 命令面板点名的案例即使还没写回 selectedId，也先按它渲染详情
+  const selected =
+    items.find((item) => item.id === (pendingCaseId ?? selectedId)) ?? items[0] ?? null;
+
+  // 命令面板可能从别的页面点名打开某个案例：等列表到货后落选中栏与详情
+  useEffect(() => {
+    if (!pendingCaseId || casesQuery.isPending) return;
+    const reachable = items.some((item) => item.id === pendingCaseId);
+    clearPendingCase();
+    if (!reachable) return;
+    window.requestAnimationFrame(() => {
+      setSearchDraft("");
+      setSelectedId(pendingCaseId);
+    });
+  }, [pendingCaseId, casesQuery.isPending, items, clearPendingCase]);
+
+  // 跨路由到达的新建请求：路由切换时组件实例会被复用，创建状态必须显式打开
+  useEffect(() => {
+    if (!kindScope || pendingCreateKind !== kindScope) return;
+    const frame = window.requestAnimationFrame(() => {
+      setCreating(true);
+      clearPendingCreate();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [kindScope, pendingCreateKind, clearPendingCreate]);
+
+  // 表单出现后把焦点交给标题，Ctrl+N 与命令面板两条路径共用
+  useEffect(() => {
+    if (!creating) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("case-title-input")?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [creating]);
+
+  // 登记「新建」动作，供 Ctrl+N 与命令面板在任意页面调用
+  useEffect(() => {
+    if (!kindScope) return;
+    caseActions.createCase = () => setCreating(true);
+    return () => {
+      caseActions.createCase = undefined;
+    };
+  }, [kindScope]);
 
   const searchConfigured = Boolean(aiSettings.data?.searchCredential.configured);
 
@@ -360,6 +412,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
         <div className="mt-2.5">
           <Input
             aria-label="搜索案例"
+            data-search-input
             value={searchDraft}
             placeholder="搜标题 / 摘要 / 拼音，2 字即可命中"
             onChange={(event) => setSearchDraft(event.target.value)}

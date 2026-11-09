@@ -4,6 +4,7 @@ import {
   DEFAULT_FILTERS,
   DEFAULT_LAYOUT,
   type CaseFilters,
+  type CaseKind,
   type ListView,
 } from "@/lib/constants";
 import type { NavSectionKey } from "@/lib/navigation";
@@ -28,6 +29,11 @@ interface UiState {
   filters: CaseFilters;
   viewMode: ListView;
   activeCollectionId: string | null;
+  paletteOpen: boolean;
+  /** 命令面板跨路由打开案例的一次性请求 */
+  pendingCaseId: string | null;
+  /** 命令面板跨路由新建案例的一次性请求 */
+  pendingCreateKind: CaseKind | null;
   setThemeMode: (mode: ThemeMode) => void;
   syncResolvedTheme: (resolved: ResolvedTheme) => void;
   setReduceMotion: (value: boolean) => void;
@@ -38,6 +44,12 @@ interface UiState {
   resetFilters: () => void;
   setViewMode: (view: ListView) => void;
   setActiveCollection: (id: string | null) => void;
+  openPalette: () => void;
+  closePalette: () => void;
+  requestOpenCase: (id: string) => void;
+  clearPendingCase: () => void;
+  requestCreate: (kind: CaseKind) => void;
+  clearPendingCreate: () => void;
   openNavSection: (section: NavSectionKey) => void;
   closeNavSection: () => void;
   selectCategory: (section: NavSectionKey, categoryId: string) => void;
@@ -60,6 +72,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   filters: DEFAULT_FILTERS,
   viewMode: "grid",
   activeCollectionId: null,
+  paletteOpen: false,
+  pendingCaseId: null,
+  pendingCreateKind: null,
 
   setThemeMode: (mode) => {
     const resolved = resolveTheme(mode);
@@ -88,6 +103,12 @@ export const useUiStore = create<UiState>((set, get) => ({
   resetFilters: () => set({ filters: DEFAULT_FILTERS }),
   setViewMode: (view) => set({ viewMode: view }),
   setActiveCollection: (id) => set({ activeCollectionId: id }),
+  openPalette: () => set({ paletteOpen: true }),
+  closePalette: () => set({ paletteOpen: false }),
+  requestOpenCase: (id) => set({ pendingCaseId: id }),
+  clearPendingCase: () => set({ pendingCaseId: null }),
+  requestCreate: (kind) => set({ pendingCreateKind: kind }),
+  clearPendingCreate: () => set({ pendingCreateKind: null }),
 
   openNavSection: (section) => set({ navOpen: true, activeSection: section }),
   closeNavSection: () => set({ navOpen: false }),

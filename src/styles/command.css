@@ -1,0 +1,192 @@
+/* 命令面板与快捷键表：只引用语义 token，深浅两套自动跟随 */
+
+.command-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 11vh 24px 24px;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+}
+
+.command-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, calc(100vw - 48px));
+  max-height: min(72vh, 560px);
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+}
+
+.command-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.command-search-icon {
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.command-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-body);
+}
+
+.command-search input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.command-kbd,
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-xs);
+  background: var(--control-bg);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.command-list {
+  overflow-y: auto;
+  padding: 6px;
+  overscroll-behavior: contain;
+}
+
+.command-group-label {
+  padding: 8px 8px 4px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.command-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+
+.command-item[data-active="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: var(--text-primary);
+}
+
+.command-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-item-hint {
+  margin-left: auto;
+  flex: none;
+  max-width: 52%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+}
+
+.command-item[data-active="true"] .command-item-hint {
+  color: var(--text-secondary);
+}
+
+.command-empty {
+  padding: 26px 16px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-meta);
+  text-align: center;
+}
+
+.command-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+}
+
+/* 设置页的只读快捷键表 */
+
+.shortcut-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-meta);
+}
+
+.shortcut-table th {
+  padding: 0 12px 8px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  font-weight: 500;
+  text-align: left;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shortcut-table td {
+  padding: 9px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+
+.shortcut-table tbody tr:first-child td {
+  border-top: 0;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.shortcut-label {
+  color: var(--text-primary);
+}
+
+.shortcut-scope {
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.shortcut-note {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-2xs);
+  line-height: 1.5;
+}

@@ -4,6 +4,7 @@ import {
   Database,
   Download,
   Info,
+  Keyboard,
   LayoutPanelLeft,
   Monitor,
   Moon,
@@ -27,6 +28,7 @@ import { ContentPackagesSection } from "@/features/settings/ContentPackagesSecti
 import { useAppInfo, useSetSetting, useSettings } from "@/features/settings/api";
 import { DEFAULT_LAYOUT, SETTINGS_KEYS } from "@/lib/constants";
 import { LICENSE_ENTRIES, LICENSE_POLICY } from "@/lib/licenses";
+import { SHORTCUT_ENTRIES } from "@/lib/shortcuts";
 import { useUiStore } from "@/stores/uiStore";
 
 const THEME_OPTIONS = [
@@ -38,6 +40,7 @@ const THEME_OPTIONS = [
 type SettingsSectionId =
   | "appearance"
   | "ai"
+  | "shortcuts"
   | "layout"
   | "content"
   | "storage"
@@ -79,6 +82,14 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
         description: "左栏与中栏宽度实时保存；窗口最小宽度 1000px，避免内容被压到不可读。",
         icon: LayoutPanelLeft,
         keywords: ["布局", "面板", "宽度", "左栏", "中栏", "恢复", "默认", "窗口"],
+      },
+      {
+        id: "shortcuts",
+        label: "快捷键",
+        title: "快捷键",
+        description: "只读展示当前版本实际生效的按键；命令面板与全局快捷键共用这一份口径。",
+        icon: Keyboard,
+        keywords: ["快捷键", "键盘", "命令面板", "Ctrl", "Esc", "搜索", "新建", "导出"],
       },
       {
         id: "ai",
@@ -321,6 +332,44 @@ export function SettingsView() {
             </SettingCard>
           </>
         );
+      case "shortcuts":
+        return (
+          <>
+            <SettingCard
+              title="键盘快捷键"
+              description="只读展示；都是应用内按键，不注册系统级全局热键。焦点在输入框里时单键快捷键不抢键，命令面板打开时其余按键不向下传。"
+            >
+              <table className="shortcut-table">
+                <thead>
+                  <tr>
+                    <th scope="col">按键</th>
+                    <th scope="col">动作</th>
+                    <th scope="col">生效范围</th>
+                    <th scope="col">说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SHORTCUT_ENTRIES.map((entry) => (
+                    <tr key={`${entry.keys.join("+")}-${entry.label}`}>
+                      <td>
+                        <span className="shortcut-keys">
+                          {entry.keys.map((key) => (
+                            <kbd key={key} className="shortcut-key">
+                              {key}
+                            </kbd>
+                          ))}
+                        </span>
+                      </td>
+                      <td className="shortcut-label">{entry.label}</td>
+                      <td className="shortcut-scope">{entry.scope}</td>
+                      <td className="shortcut-note">{entry.note ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </SettingCard>
+          </>
+        );
       case "ai":
         return <AiSettingsSection />;
       case "content":
@@ -525,6 +574,7 @@ export function SettingsView() {
             <Search size={14} strokeWidth={1.8} aria-hidden />
             <input
               type="search"
+              data-search-input
               value={query}
               aria-label="搜索设置"
               placeholder="搜索设置"

@@ -20,6 +20,7 @@ import {
 } from "@/features/cases/api";
 import { buildCaseJson, buildCaseMarkdown } from "@/features/cases/markdown";
 import { PreviewPanel } from "@/features/preview/PreviewPanel";
+import { caseActions } from "@/lib/caseActions";
 import {
   CASE_KIND_LABELS,
   CONFIDENCE_LABELS,
@@ -472,6 +473,15 @@ export function CaseDetail({
       },
     );
   };
+
+  // 全局 Ctrl+E 与命令面板通过登记处调用导出，避免把导出状态提到上层。
+  // 不写依赖数组：handleExport 每次渲染都会变，登记处跟着指向最新闭包即可。
+  useEffect(() => {
+    caseActions.exportCurrent = handleExport;
+    return () => {
+      caseActions.exportCurrent = undefined;
+    };
+  });
 
   const applyTags = (labels: string[], successText?: string) => {
     setTags.mutate(

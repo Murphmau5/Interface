@@ -96,6 +96,7 @@ export function CreateCaseForm({ kind, categoryId, onCreated, onCancel }: Create
       </div>
 
       <Input
+        id="case-title-input"
         aria-label="案例标题"
         className="h-8"
         value={title}
