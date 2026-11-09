@@ -19,6 +19,7 @@ import {
 import { Resizer } from "@/components/ui/Resizer";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TitleBar } from "@/components/layout/TitleBar";
 import { ThemeController } from "@/app/ThemeController";
 import { useAppInfo, useSettings, useSetSetting } from "@/features/settings/api";
 import { useCaseCounts, useCatalog, useCollections, useCreateCollection, useViewCounts } from "@/features/cases/api";
@@ -184,6 +185,11 @@ export function AppShell() {
     savedScrollRef.current = nav ? nav.scrollTop : 0;
     const section = NAV_SECTIONS[key];
     if (location.pathname !== section.route) navigate(section.route);
+    // 设置页自带分组栏，再展开二级导航会变成三层，直接留在设置页
+    if (key === "settings") {
+      closeNavSection();
+      return;
+    }
     openNavSection(key);
   };
 
@@ -235,9 +241,11 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-bg text-ink">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink">
       <ThemeController />
-      <aside style={{ width: leftWidth }} className="flex min-h-0 shrink-0 flex-col bg-surface">
+      <TitleBar />
+      <div className="flex min-h-0 w-full flex-1 overflow-hidden">
+        <aside style={{ width: leftWidth }} className="flex min-h-0 shrink-0 flex-col bg-surface">
         <div className="nav-stack">
           {/* 一级层：内容域 + 工具位 + 收藏/最近 */}
           <div
@@ -246,16 +254,6 @@ export function AppShell() {
             inert={navOpen}
             aria-hidden={navOpen}
           >
-            <div className="flex items-center gap-2.5 border-b border-line px-4 py-4">
-              <div className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-xs border border-accent-line bg-sunken">
-                <span className="block h-2.5 w-2.5 rounded-xs border border-accent bg-accent-soft" />
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold tracking-[0.12em] text-ink">界序</div>
-                <div className="font-mono text-2xs tracking-[0.18em] text-ink-faint">INTERFACE</div>
-              </div>
-            </div>
-
             <div ref={rootNavRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-4">
               <div className="flex flex-col gap-0.5">
                 <div className="label-eyebrow px-2.5 pb-1.5">内容域</div>
@@ -524,9 +522,10 @@ export function AppShell() {
         onCommit={commitLeftWidth}
       />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <Outlet />
-      </main>
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

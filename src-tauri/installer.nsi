@@ -78,7 +78,8 @@ Var WixMode
 Var OldMainBinaryName
 
 Name "${PRODUCTNAME}"
-BrandingText "${COPYRIGHT}"
+; 空 copyright 时默认会显示 "Nullsoft Install System v3.x"，这里留白
+BrandingText " "
 OutFile "${OUTFILE}"
 
 ; We don't actually use this value as default install path,
@@ -166,17 +167,12 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 !define MUI_LANGDLL_REGISTRY_VALUENAME "Installer Language"
 
 ; Installer pages, must be ordered as they appear
-; 1. Welcome Page
-!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
-!insertmacro MUI_PAGE_WELCOME
+; 说明：不再插入 MUI 欢迎页与独立许可页。
+; 首屏由 PageInstallOptions 承担（图标 / 名称 / 版本 / 安装位置 / 协议 / 快捷方式），
+; 许可原文以 $INSTDIR\LICENSE 随包分发，完成页提供「查看 MIT 许可」入口。
+; 参见 docs/安装器视觉规格.md §7.2。
 
-; 2. License Page (if defined)
-!if "${LICENSE}" != ""
-  !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
-  !insertmacro MUI_PAGE_LICENSE "${LICENSE}"
-!endif
-
-; 3. Install mode (if it is set to `both`)
+; 1. Install mode (if it is set to `both`)
 !if "${INSTALLMODE}" == "both"
   !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
   !insertmacro MULTIUSER_PAGE_INSTALLMODE
@@ -419,9 +415,220 @@ Function PageLeaveReinstall
   reinst_done:
 FunctionEnd
 
-; 5. Choose install directory page
-!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
-!insertmacro MUI_PAGE_DIRECTORY
+; 5. 安装选项页（单屏）
+;    替代 MUI 欢迎页 + 独立目录页：图标、定位、版本、安装位置、所需/可用空间、
+;    桌面快捷方式、协议勾选全部在一屏内完成。
+;    视觉取 docs/安装器视觉规格.md §5.1 / §6.2（固定浅色一套 token）。
+;    已知限制：系统主题绘制的 BUTTON 不受 SetCtlColors 影响，主按钮沿用系统样式。
+Var CreateDesktopShortcut
+Var IxPathEdit
+Var IxBrowseBtn
+Var IxLicenseChk
+Var IxDesktopChk
+Var IxSpaceLabel
+Var IxFontTitle
+Var IxFontBody
+Var IxFontMeta
+Var IxFontsReady
+
+!define IX_IMAGE_ICON 1
+!define IX_LR_LOADFROMFILE 0x0010
+!define IX_STM_SETIMAGE 0x0172
+
+Page custom PageInstallOptions PageInstallOptionsLeave
+
+; 头部右上角的 1039 小图标与窗口标题旁的图标重复，且外观近似可点控件，安装器只保留内容区一个图标
+!define MUI_CUSTOMFUNCTION_GUIINIT IxOnGuiInit
+Function IxOnGuiInit
+  GetDlgItem $0 $HWNDPARENT 1039
+  ${If} $0 != 0
+    ShowWindow $0 0
+  ${EndIf}
+FunctionEnd
+
+Function IxCreateFonts
+  ${If} $IxFontsReady == 1
+    Return
+  ${EndIf}
+  ; 系统字体栈：Microsoft YaHei UI（中文回退），字重 600/400，ClearType
+  StrCpy $1 "Microsoft YaHei UI"
+  System::Call 'gdi32::CreateFontW(i -20, i 0, i 0, i 0, i 600, i 0, i 0, i 0, i 1, i 0, i 0, i 5, i 0, w r1) p .r0'
+  StrCpy $IxFontTitle $0
+  StrCpy $1 "Microsoft YaHei UI"
+  System::Call 'gdi32::CreateFontW(i -13, i 0, i 0, i 0, i 400, i 0, i 0, i 0, i 1, i 0, i 0, i 5, i 0, w r1) p .r0'
+  StrCpy $IxFontBody $0
+  StrCpy $1 "Microsoft YaHei UI"
+  System::Call 'gdi32::CreateFontW(i -12, i 0, i 0, i 0, i 400, i 0, i 0, i 0, i 1, i 0, i 0, i 5, i 0, w r1) p .r0'
+  StrCpy $IxFontMeta $0
+  StrCpy $IxFontsReady 1
+FunctionEnd
+
+Function PageInstallOptions
+  ; 被动模式（/P）跳过本页，行为与改动前一致
+  ${If} $PassiveMode = 1
+    Abort
+  ${EndIf}
+
+  ; 页内标题用一句话定位，避免与窗口标题「${PRODUCTNAME} 安装」重复
+  !insertmacro MUI_HEADER_TEXT "$(jxTagline)" ""
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ; 浅色 token（BGR）：bg #F5F8FA / textPrimary #14202B / textSecondary #546575
+  SetCtlColors $0 0x2B2014 0xFAF8F5
+  Call IxCreateFonts
+
+  ; 说明：nsDialogs 的 u 单位随 DPI 放大（本机 125% 下约 1.5 逻辑像素/u），
+  ; MUI2 内部页默认只有约 210 逻辑像素高，因此这里按紧凑单屏排版，总量控制在 130u 内。
+
+  ; 应用图标：从安装包内释放 ICO，运行期 LoadImage，避免依赖外部位图
+  !if "${INSTALLERICON}" != ""
+    File /oname=$PLUGINSDIR\jx-app.ico "${INSTALLERICON}"
+    StrCpy $1 "$PLUGINSDIR\jx-app.ico"
+    System::Call 'user32::LoadImageW(p 0, w r1, i ${IX_IMAGE_ICON}, i 64, i 64, i ${IX_LR_LOADFROMFILE}) p .r2'
+    ${NSD_CreateIcon} 14u 2u 40u 40u ""
+    Pop $1
+    SendMessage $1 ${IX_STM_SETIMAGE} ${IX_IMAGE_ICON} $2
+  !endif
+
+  ; 版本行（页内不再重复定位语，定位语已上移到页面标题）
+  ${NSD_CreateLabel} 60u 16u -76u 12u "$(jxVersionLine)"
+  Pop $1
+  SetCtlColors $1 0x756554 0xFAF8F5
+  SendMessage $1 ${WM_SETFONT} $IxFontMeta 1
+
+  ; 分割线（用背景色 STATIC 画 1px，SS_ETCHEDHORZ 在彩色底上不可见）
+  ${NSD_CreateLabel} 14u 46u -28u 1u ""
+  Pop $1
+  SetCtlColors $1 0xECE8E3 0xECE8E3
+
+  ; 安装位置
+  ${NSD_CreateLabel} 14u 51u -28u 11u "$(jxInstallLocation)"
+  Pop $1
+  SetCtlColors $1 0x756554 0xFAF8F5
+  SendMessage $1 ${WM_SETFONT} $IxFontMeta 1
+
+  ${NSD_CreateText} 14u 63u -74u 15u "$INSTDIR"
+  Pop $IxPathEdit
+  SetCtlColors $IxPathEdit 0x2B2014 0xFFFFFF
+  SendMessage $IxPathEdit ${WM_SETFONT} $IxFontBody 1
+
+  ${NSD_CreateButton} -57u 63u 43u 15u "$(jxBrowse)"
+  Pop $IxBrowseBtn
+  SendMessage $IxBrowseBtn ${WM_SETFONT} $IxFontMeta 1
+  ${NSD_OnClick} $IxBrowseBtn PageInstallOptionsBrowse
+
+  ; 所需 / 可用空间
+  ${NSD_CreateLabel} 14u 82u -28u 11u ""
+  Pop $IxSpaceLabel
+  SetCtlColors $IxSpaceLabel 0x756554 0xFAF8F5
+  SendMessage $IxSpaceLabel ${WM_SETFONT} $IxFontMeta 1
+  Call IxUpdateSpaceInfo
+
+  ${NSD_CreateCheckBox} 14u 98u -28u 12u "$(jxCreateDesktop)"
+  Pop $IxDesktopChk
+  SetCtlColors $IxDesktopChk 0x2B2014 0xFAF8F5
+  SendMessage $IxDesktopChk ${BM_SETCHECK} ${BST_CHECKED} 0
+  SendMessage $IxDesktopChk ${WM_SETFONT} $IxFontBody 1
+
+  ${NSD_CreateCheckBox} 14u 114u -28u 12u "$(jxLicenseAgree)"
+  Pop $IxLicenseChk
+  SetCtlColors $IxLicenseChk 0x2B2014 0xFAF8F5
+  SendMessage $IxLicenseChk ${WM_SETFONT} $IxFontBody 1
+  ${NSD_OnClick} $IxLicenseChk PageInstallOptionsLicenseClick
+
+  ; 单屏流程没有上一步可回，隐藏 Back 而不是留一个禁用的空壳按钮
+  ; 未勾选协议时主按钮置灰并把文案改成明确的前置条件
+  GetDlgItem $1 $HWNDPARENT 1
+  EnableWindow $1 0
+  SendMessage $1 ${WM_SETTEXT} 0 "STR:$(jxInstallBlocked)"
+  GetDlgItem $1 $HWNDPARENT 3
+  ShowWindow $1 0
+
+  nsDialogs::Show
+FunctionEnd
+
+Function IxUpdateSpaceInfo
+  ; 所需空间来自编译期 ESTIMATEDSIZE（KB）；可用空间按目标盘实时取
+  IntOp $2 ${ESTIMATEDSIZE} / 1024
+  ${GetRoot} "$INSTDIR" $3
+  ${DriveSpace} "$3\" "/D=F /S=M" $4
+  ${If} $4 == ""
+    StrCpy $4 "0"
+  ${EndIf}
+  ; MB 超过 1024 时进位到 GB（四舍五入，保留整数），避免出现 128698 MB
+  ${If} $2 >= 1024
+    IntOp $2 $2 + 512
+    IntOp $2 $2 / 1024
+    StrCpy $6 " GB"
+  ${Else}
+    StrCpy $6 " MB"
+  ${EndIf}
+  ${If} $4 >= 1024
+    IntOp $4 $4 + 512
+    IntOp $4 $4 / 1024
+    StrCpy $7 " GB"
+  ${Else}
+    StrCpy $7 " MB"
+  ${EndIf}
+  StrCpy $5 "$(jxRequiredSpace) $2$6    $(jxFreeSpace) $4$7"
+  ${If} $IxSpaceLabel != ""
+    SendMessage $IxSpaceLabel ${WM_SETTEXT} 0 "STR:$5"
+  ${EndIf}
+FunctionEnd
+
+Function PageInstallOptionsBrowse
+  ${NSD_GetText} $IxPathEdit $0
+  nsDialogs::SelectFolderDialog "$(jxChooseFolder)" "$0"
+  Pop $0
+  ${If} $0 != error
+    ${NSD_SetText} $IxPathEdit "$0"
+    StrCpy $INSTDIR "$0"
+    Call IxUpdateSpaceInfo
+  ${EndIf}
+FunctionEnd
+
+Function PageInstallOptionsLicenseClick
+  ${NSD_GetState} $IxLicenseChk $0
+  GetDlgItem $1 $HWNDPARENT 1
+  ${If} $0 == ${BST_CHECKED}
+    SendMessage $1 ${WM_SETTEXT} 0 "STR:$(jxInstallNow)"
+    EnableWindow $1 1
+  ${Else}
+    SendMessage $1 ${WM_SETTEXT} 0 "STR:$(jxInstallBlocked)"
+    EnableWindow $1 0
+  ${EndIf}
+FunctionEnd
+
+Function PageInstallOptionsLeave
+  ${If} $PassiveMode = 1
+    Return
+  ${EndIf}
+
+  ${NSD_GetText} $IxPathEdit $0
+  ${If} $0 == ""
+    MessageBox MB_ICONEXCLAMATION "$(jxPathEmpty)"
+    Abort
+  ${EndIf}
+  StrCpy $INSTDIR $0
+
+  ${NSD_GetState} $IxDesktopChk $1
+  ${If} $1 == ${BST_CHECKED}
+    StrCpy $CreateDesktopShortcut 1
+  ${Else}
+    StrCpy $CreateDesktopShortcut 0
+  ${EndIf}
+
+  ; 恢复向导默认按钮文案与 Back 可见性，避免污染后续页面
+  GetDlgItem $1 $HWNDPARENT 1
+  SendMessage $1 ${WM_SETTEXT} 0 "STR:$(^Next)"
+  GetDlgItem $1 $HWNDPARENT 3
+  ShowWindow $1 1
+FunctionEnd
 
 ; 6. Start menu shortcut page
 Var AppStartMenuFolder
@@ -438,18 +645,24 @@ Var AppStartMenuFolder
 
 ; 8. Finish page
 ;
-; Don't auto jump to finish page after installation page,
-; because the installation page has useful info that can be used debug any issues with the installer.
-!define MUI_FINISHPAGE_NOAUTOCLOSE
-; Use show readme button in the finish page as a button create a desktop shortcut
-!define MUI_FINISHPAGE_SHOWREADME
-!define MUI_FINISHPAGE_SHOWREADME_TEXT "$(createDesktop)"
-!define MUI_FINISHPAGE_SHOWREADME_FUNCTION CreateOrUpdateDesktopShortcut
-; Show run app after installation.
+; 完成页只保留一个动作：勾选「立即体验」启动应用。
+; 桌面快捷方式已在安装选项页询问，不再复用 SHOWREADME 勾选。
+!define MUI_FINISHPAGE_TITLE "$(jxFinishTitle)"
+!define MUI_FINISHPAGE_TEXT "$(jxFinishText)"
 !define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_TEXT "$(jxRunApp)"
 !define MUI_FINISHPAGE_RUN_FUNCTION RunMainBinary
+!define MUI_FINISHPAGE_LINK "$(jxViewLicense)"
+!define MUI_FINISHPAGE_LINK_LOCATION "$INSTDIR\LICENSE"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW IxFinishShow
 !insertmacro MUI_PAGE_FINISH
+
+; 完成页同样是终点页，隐藏无意义的「上一步」
+Function IxFinishShow
+  GetDlgItem $0 $HWNDPARENT 3
+  ShowWindow $0 0
+FunctionEnd
 
 Function RunMainBinary
   nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" ""
@@ -517,7 +730,44 @@ LangString jxUninstallBlocked ${LANG_ENGLISH} "Failed to uninstall the previous 
 LangString jxAppRunningConfirm ${LANG_SIMPCHINESE} "${PRODUCTNAME} 正在运行。升级前需要先关闭它：点击「确定」关闭并继续安装，点击「取消」退出安装。"
 LangString jxAppRunningConfirm ${LANG_ENGLISH} "${PRODUCTNAME} is running. It must be closed before upgrading: click OK to close it and continue, or Cancel to exit the installer."
 
+; 安装选项页 / 完成页文案
+LangString jxTagline ${LANG_SIMPCHINESE} "双主题 UI 动效仪器台 · 本地优先，离线可用"
+LangString jxTagline ${LANG_ENGLISH} "Dual-theme motion instrument · Local-first, works offline"
+LangString jxVersionLine ${LANG_SIMPCHINESE} "版本 ${VERSION} · 64 位"
+LangString jxVersionLine ${LANG_ENGLISH} "Version ${VERSION} · 64-bit"
+LangString jxInstallLocation ${LANG_SIMPCHINESE} "安装位置"
+LangString jxInstallLocation ${LANG_ENGLISH} "Install location"
+LangString jxBrowse ${LANG_SIMPCHINESE} "浏览..."
+LangString jxBrowse ${LANG_ENGLISH} "Browse..."
+LangString jxRequiredSpace ${LANG_SIMPCHINESE} "所需空间"
+LangString jxRequiredSpace ${LANG_ENGLISH} "Required"
+LangString jxFreeSpace ${LANG_SIMPCHINESE} "可用空间"
+LangString jxFreeSpace ${LANG_ENGLISH} "Available"
+LangString jxCreateDesktop ${LANG_SIMPCHINESE} "创建桌面快捷方式"
+LangString jxCreateDesktop ${LANG_ENGLISH} "Create a desktop shortcut"
+LangString jxLicenseAgree ${LANG_SIMPCHINESE} "我已阅读并同意 MIT 开源许可"
+LangString jxLicenseAgree ${LANG_ENGLISH} "I have read and accept the MIT license"
+LangString jxInstallNow ${LANG_SIMPCHINESE} "立即安装"
+LangString jxInstallNow ${LANG_ENGLISH} "Install now"
+LangString jxInstallBlocked ${LANG_SIMPCHINESE} "请先勾选协议"
+LangString jxInstallBlocked ${LANG_ENGLISH} "Accept license first"
+LangString jxPathEmpty ${LANG_SIMPCHINESE} "请填写安装位置。"
+LangString jxPathEmpty ${LANG_ENGLISH} "Please specify an install location."
+LangString jxChooseFolder ${LANG_SIMPCHINESE} "选择安装位置"
+LangString jxChooseFolder ${LANG_ENGLISH} "Select install location"
+LangString jxRunApp ${LANG_SIMPCHINESE} "立即体验 ${PRODUCTNAME}"
+LangString jxRunApp ${LANG_ENGLISH} "Launch ${PRODUCTNAME}"
+LangString jxViewLicense ${LANG_SIMPCHINESE} "查看 MIT 许可"
+LangString jxViewLicense ${LANG_ENGLISH} "View MIT license"
+LangString jxFinishTitle ${LANG_SIMPCHINESE} "安装完成"
+LangString jxFinishTitle ${LANG_ENGLISH} "Installation complete"
+LangString jxFinishText ${LANG_SIMPCHINESE} "${PRODUCTNAME} ${VERSION} 已安装到本机。$\r$\n勾选「立即体验」后点击「完成」即可启动。"
+LangString jxFinishText ${LANG_ENGLISH} "${PRODUCTNAME} ${VERSION} is installed.$\r$\nKeep 'Launch ${PRODUCTNAME}' checked and click Finish to start it."
+
 Function .onInit
+  ; 安装选项页不可见时（/S、/P）仍按旧行为创建桌面快捷方式
+  StrCpy $CreateDesktopShortcut 1
+
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}
     StrCpy $PassiveMode 1
@@ -772,10 +1022,8 @@ Section Install
     Call CreateOrUpdateStartMenuShortcut
   !insertmacro MUI_STARTMENU_WRITE_END
 
-  ; Create desktop shortcut for silent and passive installers
-  ; because finish page will be skipped
-  ${If} $PassiveMode = 1
-  ${OrIf} ${Silent}
+  ; 桌面快捷方式：安装选项页的勾选结果（静默/被动安装默认创建，行为与改动前一致）
+  ${If} $CreateDesktopShortcut = 1
     Call CreateOrUpdateDesktopShortcut
   ${EndIf}
 

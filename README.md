@@ -1,8 +1,8 @@
 # 界序 INTERFACE
 
-**v1.0.3 · 安装器升级路径修正** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版修正覆盖升级路径：旧版本上双击新包即可直接装完，不再弹出「安装前卸载 / 请勿卸载」二选一页。
+**v1.0.4 · 界面与安装器同版重做** —— 面向 UI 设计师与前端工程师的 Windows 桌面端设计知识库工作台，用来收集、分析、预览并复用软件的**风格、主题、动效、交互反馈与 UI 组件**。本版把设置页改成 Chrome 式结构、立起五级字号阶梯、把窗口名与最小化/最大化/关闭内嵌进页面，安装器收成单屏并随包分发 LICENSE。
 
-- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.3) → `INTERFACE_1.0.3_x64-setup.exe`（5.95 MB）
+- **下载**：[GitHub Releases](https://github.com/Murphmau5/Interface/releases/tag/v1.0.4) → `INTERFACE_1.0.4_x64-setup.exe`（5.99 MB）
 - **平台**：Windows 10 1803+ / Windows 11，x64
 - **主题**：跟随系统（默认）/ 深色 / 浅色
 - **许可**：MIT
@@ -31,14 +31,14 @@
 
 | 项 | 状态 |
 |---|---|
-| 版本 | **v1.0.3（安装器升级路径修正）** |
-| 阶段 | Phase 2 收口完成；本版仅修安装器的覆盖升级与版本号显示 |
+| 版本 | **v1.0.4（界面与安装器同版重做）** |
+| 阶段 | Phase 2 收口完成；本版做界面与安装器的视觉收口，功能面不变 |
 | 安装包 | **已发布**（NSIS，Windows x64，未签名），见 GitHub Releases |
 | 文档 | 治理七件套 + A–J 十份启动文档 + 架构自检，已就绪 |
 | 代码 | 工程脚手架已通过安装 / 启动 / 卸载实测；功能项按验收逐条转 ✅ |
-| 发布渠道 | GitHub Releases `v1.0.3` |
+| 发布渠道 | GitHub Releases `v1.0.4` |
 
-> 本版重点：升级与同版本重装不再显示二选一页，自动静默卸载旧版本后继续；降级提示改用真实 `DisplayVersion`，修掉「版本为 旧的 的」。功能面与 v1.0.2 一致：中文搜索默认只查本地（1 万条 P95 15.5ms，未启用 FTS5）、标签与合集落库、素材 sha256 内容寻址、候选必须人工审核、导出同时产出 Markdown 与 JSON。
+> 本版重点：设置页改为 Chrome 式左栏分组 + 内容卡片，新增五级字号阶梯与间距密度 token；窗口标题与最小化/最大化/关闭按钮内嵌进页面（真实窗口下已验拖动、双击最大化、最小化、关闭、最大化后按钮区不压内容、1000px 窄宽度不挤左栏）；安装器收成单屏，去掉欢迎页/独立目录页/独立许可页，LICENSE 随包分发；延续 1.0.3 的升级修正，覆盖升级仍不弹二选一页。功能面与 v1.0.2 一致。
 
 ## 功能清单
 
@@ -100,15 +100,15 @@
 
 ## 安装方式（Windows）
 
-1. 从 [GitHub Releases v1.0.3](https://github.com/Murphmau5/Interface/releases/tag/v1.0.3) 下载 `INTERFACE_1.0.3_x64-setup.exe`（6,239,290 字节 / 5.95 MB）。本地构建产物的原名是 `界序 INTERFACE_1.0.3_x64-setup.exe`，上传时附件名改为 ASCII 名，内容一致。
+1. 从 [GitHub Releases v1.0.4](https://github.com/Murphmau5/Interface/releases/tag/v1.0.4) 下载 `INTERFACE_1.0.4_x64-setup.exe`（6,276,631 字节 / 5.99 MB）。本地构建产物的原名是 `界序 INTERFACE_1.0.4_x64-setup.exe`，上传时附件名改为 ASCII 名，内容一致。
 2. 核对 SHA-256：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.3_x64-setup.exe"
-# 2AD4ED2285F60481A2AA2EA0ED89381FE53E464D895CCD2BAEB4D5004E6C3202
+Get-FileHash -Algorithm SHA256 "INTERFACE_1.0.4_x64-setup.exe"
+# 6C9D34AAB628586AC0EEAB2F7DC0D8E4F1CEE1A7CA22301C7E6E11C049E23CB4
 ```
 
-3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。**已装 1.0.0 / 1.0.2 的用户直接双击即可覆盖升级，不需要先手动卸载。**
+3. 运行安装包，按向导完成安装（当前用户级安装，无需管理员权限）。**已装 1.0.0 / 1.0.2 / 1.0.3 的用户直接双击即可覆盖升级，不需要先手动卸载。**
 4. 首次启动读取系统主题，默认「跟随系统」。
 
 **未签名提示**：本安装包未做代码签名，首次运行可能触发 Windows SmartScreen（「Windows 已保护你的电脑」）。确认 SHA-256 与上表一致后，可选择「更多信息 → 仍要运行」。校验和一致即可确认文件未被篡改。

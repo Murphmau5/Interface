@@ -32,6 +32,17 @@
   --theme-grid-line: rgba(255, 255, 255, 0.035);
   --theme-scrim: rgba(2, 4, 6, 0.66);
 
+  /* 自绘标题栏与可点击行 */
+  --theme-titlebar-bg: #0b1014;
+  --theme-titlebar-border: rgba(255, 255, 255, 0.06);
+  --theme-titlebar-ink: #e8eef3;
+  --theme-titlebar-ink-soft: #97a5b2;
+  --theme-titlebar-hover-bg: rgba(255, 255, 255, 0.08);
+  --theme-titlebar-active-bg: rgba(255, 255, 255, 0.13);
+  --theme-titlebar-close-hover-bg: #c42b1c;
+  --theme-titlebar-close-hover-ink: #ffffff;
+  --theme-row-hover-bg: rgba(255, 255, 255, 0.04);
+
   /* 预览示例自绘用的双主题样品色（与界面当前主题无关） */
   --theme-demo-dark-bg: #07090c;
   --theme-demo-dark-surface: #10161c;

@@ -8,10 +8,48 @@ interface SwitchProps {
   label: string;
   description?: string;
   disabled?: boolean;
+  /** 只渲染开关本体，标题与说明由外层行提供 */
+  compact?: boolean;
 }
 
-export function Switch({ checked, onChange, label, description, disabled }: SwitchProps) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+  description,
+  disabled,
+  compact = false,
+}: SwitchProps) {
   const descriptionId = useId();
+
+  const control = (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      aria-describedby={description ? descriptionId : undefined}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-pill border transition-colors duration-[var(--motion-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-45",
+        !compact && "mt-0.5",
+        checked
+          ? "border-accent-line bg-accent-soft"
+          : "border-line bg-sunken hover:border-line-strong",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "block h-3.5 w-3.5 rounded-pill transition-transform duration-[var(--motion-base)]",
+          checked ? "translate-x-[18px] bg-accent" : "translate-x-[3px] bg-ink-faint",
+        )}
+      />
+    </button>
+  );
+
+  if (compact) return control;
 
   return (
     <div className="flex items-start justify-between gap-4">
@@ -23,29 +61,7 @@ export function Switch({ checked, onChange, label, description, disabled }: Swit
           </p>
         ) : null}
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        aria-describedby={description ? descriptionId : undefined}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-pill border transition-colors duration-[var(--motion-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-line focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-45",
-          checked
-            ? "border-accent-line bg-accent-soft"
-            : "border-line bg-sunken hover:border-line-strong",
-        )}
-      >
-        <span
-          aria-hidden
-          className={cn(
-            "block h-3.5 w-3.5 rounded-pill transition-transform duration-[var(--motion-base)]",
-            checked ? "translate-x-[18px] bg-accent" : "translate-x-[3px] bg-ink-faint",
-          )}
-        />
-      </button>
+      {control}
     </div>
   );
 }

@@ -4,6 +4,8 @@
 @import "./tokens/semantic.css";
 @import "./nav.css";
 @import "./preview.css";
+@import "./titlebar.css";
+@import "./settings.css";
 
 /* Tailwind 语义映射：工具类只能落到语义层变量 */
 @theme inline {
@@ -133,6 +135,38 @@
 }
 
 @layer utilities {
+  /* Typography ladder：组件只用这五级，不直接写字号 */
+  .type-page {
+    font-size: var(--type-page-size);
+    line-height: var(--type-page-line);
+    font-weight: var(--type-page-weight);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .type-section {
+    font-size: var(--type-section-size);
+    line-height: var(--type-section-line);
+    font-weight: var(--type-section-weight);
+  }
+
+  .type-row {
+    font-size: var(--type-row-size);
+    line-height: var(--type-row-line);
+    font-weight: var(--type-row-weight);
+  }
+
+  .type-body {
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line);
+    font-weight: var(--type-body-weight);
+  }
+
+  .type-caption {
+    font-size: var(--type-caption-size);
+    line-height: var(--type-caption-line);
+    font-weight: var(--type-caption-weight);
+  }
+
   .label-eyebrow {
     font-size: var(--font-size-2xs);
     letter-spacing: var(--tracking-label);

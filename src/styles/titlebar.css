@@ -1,0 +1,94 @@
+/* ============================================================
+   自绘标题栏 —— 拖拽区由 data-tauri-drag-region 提供
+   按钮只引用语义 token，深浅主题各自提供 hover 值
+   ============================================================ */
+.titlebar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: var(--titlebar-height);
+  padding-left: var(--space-3);
+  background-color: var(--titlebar-bg);
+  border-bottom: 1px solid var(--titlebar-border);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.titlebar-brand {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-4);
+}
+
+.titlebar-mark {
+  display: inline-flex;
+  height: 14px;
+  width: 14px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-xs);
+  background-color: var(--accent-soft);
+}
+
+.titlebar-mark::after {
+  content: "";
+  height: 5px;
+  width: 5px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-xs);
+}
+
+.titlebar-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--titlebar-ink-soft);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  letter-spacing: var(--tracking-label);
+}
+
+.titlebar-actions {
+  display: flex;
+  align-self: stretch;
+  margin-left: auto;
+}
+
+.titlebar-button {
+  display: inline-flex;
+  width: var(--titlebar-button-width);
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--titlebar-ink-soft);
+  transition:
+    background-color var(--motion-fast) var(--ease-in-out),
+    color var(--motion-fast) var(--ease-in-out);
+}
+
+.titlebar-button:hover {
+  background-color: var(--titlebar-hover-bg);
+  color: var(--titlebar-ink);
+}
+
+.titlebar-button:active {
+  background-color: var(--titlebar-active-bg);
+}
+
+.titlebar-button:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: -2px;
+}
+
+.titlebar-button-close:hover,
+.titlebar-button-close:active {
+  background-color: var(--titlebar-close-hover-bg);
+  color: var(--titlebar-close-hover-ink);
+}

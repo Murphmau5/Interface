@@ -1,25 +1,28 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
+  ChevronRight,
   Database,
   Download,
+  Info,
+  LayoutPanelLeft,
   Monitor,
   Moon,
+  Palette,
   RefreshCw,
   RotateCcw,
+  Search,
   Sun,
-  Upload,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
-import { Tooltip } from "@/components/ui/Tooltip";
 import { useAppInfo, useSetSetting, useSettings } from "@/features/settings/api";
 import { DEFAULT_LAYOUT, SETTINGS_KEYS } from "@/lib/constants";
 import { LICENSE_ENTRIES, LICENSE_POLICY } from "@/lib/licenses";
-import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
 
 const THEME_OPTIONS = [
@@ -28,23 +31,139 @@ const THEME_OPTIONS = [
   { value: "light", label: "浅色", icon: <Sun size={12} strokeWidth={1.8} aria-hidden /> },
 ] as const;
 
-function SettingRow({
+type SettingsSectionId = "appearance" | "layout" | "storage" | "backup" | "about";
+
+interface SettingsSection {
+  id: SettingsSectionId;
+  label: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  keywords: string[];
+}
+
+interface SettingsGroup {
+  id: string;
+  label: string;
+  sections: SettingsSection[];
+}
+
+const SETTINGS_GROUPS: SettingsGroup[] = [
+  {
+    id: "preferences",
+    label: "偏好",
+    sections: [
+      {
+        id: "appearance",
+        label: "外观与主题",
+        title: "外观与主题",
+        description: "主题默认跟随系统；手动选择后不再跟随。偏好写入本地 settings 表。",
+        icon: Palette,
+        keywords: ["主题", "深色", "浅色", "系统", "外观", "颜色", "动效", "动画"],
+      },
+      {
+        id: "layout",
+        label: "布局与面板",
+        title: "布局与面板",
+        description: "左栏与中栏宽度实时保存；窗口最小宽度 1000px，避免内容被压到不可读。",
+        icon: LayoutPanelLeft,
+        keywords: ["布局", "面板", "宽度", "左栏", "中栏", "恢复", "默认", "窗口"],
+      },
+    ],
+  },
+  {
+    id: "data",
+    label: "数据",
+    sections: [
+      {
+        id: "storage",
+        label: "存储与数据库",
+        title: "存储与数据库",
+        description: "案例保存在本机 SQLite；启动时自动建库并执行版本迁移，不联网。",
+        icon: Database,
+        keywords: ["数据库", "存储", "sqlite", "路径", "条数", "迁移", "本地"],
+      },
+      {
+        id: "backup",
+        label: "备份与更新",
+        title: "备份与更新",
+        description: "备份、还原与更新检查尚未接入，入口保持禁用并标注原因。",
+        icon: Download,
+        keywords: ["备份", "导出", "还原", "更新", "检查", "版本"],
+      },
+    ],
+  },
+  {
+    id: "about",
+    label: "关于",
+    sections: [
+      {
+        id: "about",
+        label: "关于界序",
+        title: "关于界序",
+        description: "版本信息、数据位置与第三方开源许可。",
+        icon: Info,
+        keywords: ["关于", "版本", "许可", "license", "开源", "版权"],
+      },
+    ],
+  },
+];
+
+const ALL_SECTIONS = SETTINGS_GROUPS.flatMap((group) => group.sections);
+
+function matchesQuery(section: SettingsSection, query: string): boolean {
+  const haystack = [section.label, section.title, section.description, ...section.keywords]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query);
+}
+
+function SettingCard({
   title,
   description,
   children,
 }: {
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line py-3 last:border-b-0">
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-ink">{title}</div>
-        <p className="mt-0.5 text-xs leading-normal text-ink-faint">{description}</p>
+    <div className="settings-card">
+      <div className="settings-card-head">
+        <h2 className="settings-card-title">{title}</h2>
+        {description ? <p className="settings-card-desc">{description}</p> : null}
       </div>
-      <div className="shrink-0">{children}</div>
+      {children}
     </div>
+  );
+}
+
+function SettingRow({
+  title,
+  description,
+  control,
+}: {
+  title: string;
+  description?: ReactNode;
+  control?: ReactNode;
+}) {
+  return (
+    <div className="settings-row">
+      <div className="settings-row-text">
+        <div className="settings-row-title">{title}</div>
+        {description ? <div className="settings-row-desc">{description}</div> : null}
+      </div>
+      {control ? <div className="settings-row-control">{control}</div> : null}
+    </div>
+  );
+}
+
+function UnavailableControl({ label = "未接入" }: { label?: string }) {
+  return (
+    <>
+      <span className="settings-row-value">{label}</span>
+      <ChevronRight size={15} strokeWidth={1.8} aria-hidden />
+    </>
   );
 }
 
@@ -60,9 +179,34 @@ export function SettingsView() {
   const appInfo = useAppInfo();
   const setSetting = useSetSetting();
 
+  const [query, setQuery] = useState("");
+  const [sectionId, setSectionId] = useState<SettingsSectionId>("appearance");
   const storedNote = settings.data?.[SETTINGS_KEYS.note] ?? "";
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredGroups = useMemo(() => {
+    if (!normalizedQuery) return SETTINGS_GROUPS;
+    return SETTINGS_GROUPS.map((group) => ({
+      ...group,
+      sections: group.sections.filter((section) => matchesQuery(section, normalizedQuery)),
+    })).filter((group) => group.sections.length > 0);
+  }, [normalizedQuery]);
+
+  const activeSection = ALL_SECTIONS.find((section) => section.id === sectionId) ?? ALL_SECTIONS[0];
+
+  // 输入搜索词后，如果当前分区被过滤掉，就落到第一个命中项，避免左栏无选中项而右栏停在旧内容
+  const changeQuery = (next: string) => {
+    setQuery(next);
+    const normalized = next.trim().toLowerCase();
+    if (!normalized) return;
+    const visibleSections = ALL_SECTIONS.filter((section) => matchesQuery(section, normalized));
+    if (visibleSections.length === 0) return;
+    setSectionId((current) =>
+      visibleSections.some((section) => section.id === current) ? current : visibleSections[0].id,
+    );
+  };
 
   const changeTheme = (next: "system" | "dark" | "light") => {
     setThemeMode(next);
@@ -110,203 +254,304 @@ export function SettingsView() {
     );
   };
 
+  const refreshData = () => {
+    appInfo.refetch();
+    settings.refetch();
+  };
+
+  const sectionContent = (() => {
+    switch (activeSection.id) {
+      case "appearance":
+        return (
+          <>
+            <SettingCard title="主题" description="跟随系统时监听 Windows 明暗变化并实时切换。">
+              <SettingRow
+                title="主题模式"
+                description="深色 / 浅色是手动偏好；选择后不再跟随系统。"
+                control={
+                  <SegmentedControl
+                    label="主题模式"
+                    options={THEME_OPTIONS}
+                    value={themeMode}
+                    onChange={changeTheme}
+                  />
+                }
+              />
+            </SettingCard>
+            <SettingCard title="动效" description="减少装饰性动画，内容本身的预览仍会播放一次。">
+              <SettingRow
+                title="减少动效"
+                description="预览只播放一次、不循环；系统 prefers-reduced-motion 也会被识别。"
+                control={
+                  <Switch
+                    compact
+                    label="减少动效"
+                    checked={reduceMotion}
+                    onChange={changeReduceMotion}
+                  />
+                }
+              />
+            </SettingCard>
+          </>
+        );
+      case "layout":
+        return (
+          <>
+            <SettingCard title="面板宽度" description="拖动分隔条会实时保存；恢复默认只影响左栏与中栏。">
+              <SettingRow
+                title="左栏宽度"
+                description="范围 196–320px。"
+                control={<span className="settings-row-value">{leftWidth}px</span>}
+              />
+              <SettingRow
+                title="中栏宽度"
+                description="范围 300–560px；详情栏自动占满剩余空间。"
+                control={<span className="settings-row-value">{middleWidth}px</span>}
+              />
+              <SettingRow
+                title="恢复默认布局"
+                description={`左栏 ${DEFAULT_LAYOUT.leftWidth}px、中栏 ${DEFAULT_LAYOUT.middleWidth}px。`}
+                control={
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<RotateCcw size={12} strokeWidth={2} />}
+                    onClick={restoreLayout}
+                  >
+                    恢复默认
+                  </Button>
+                }
+              />
+            </SettingCard>
+            <SettingCard title="窗口行为" description="这些值固定，不提供修改入口。">
+              <SettingRow
+                title="最小窗口宽度"
+                description="低于 1000px 三栏会挤压内容，因此不再允许继续缩小。"
+                control={<span className="settings-row-value">1000px</span>}
+              />
+              <SettingRow
+                title="内嵌标题栏"
+                description="拖动标题栏可移动窗口，双击可最大化 / 还原。"
+                control={<span className="settings-row-value">已启用</span>}
+              />
+            </SettingCard>
+          </>
+        );
+      case "storage":
+        return (
+          <>
+            <SettingCard
+              title="本地数据库"
+              description="启动时自动建库并执行版本迁移；数据文件位于应用数据目录。"
+            >
+              <SettingRow
+                title="数据库状态"
+                description={
+                  appInfo.isError ? `读取失败：${appInfo.error.message}` : "SQLite · 本地模式 · 不联网"
+                }
+                control={
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<RefreshCw size={12} strokeWidth={2} />}
+                    onClick={refreshData}
+                  >
+                    重新读取
+                  </Button>
+                }
+              />
+              <div className="settings-row-block">
+                <div className="settings-row-title">数据库文件</div>
+                <div className="settings-readout">{appInfo.data?.dbPath ?? "读取中…"}</div>
+                <div className="settings-field-row">
+                  <span className="settings-row-value">案例 {appInfo.data?.caseCount ?? 0} 条</span>
+                  <span className="settings-row-value">平台 {appInfo.data?.platform ?? "—"}</span>
+                </div>
+              </div>
+            </SettingCard>
+            <SettingCard
+              title="设置写入自检"
+              description="写入 settings 表后立即可读回；重启应用后该值仍然存在。"
+            >
+              <div className="settings-row-block">
+                <div className="settings-row-title">备注值</div>
+                <div className="settings-field-row">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      aria-label="备注内容"
+                      placeholder="输入一段备注，例如 1.0.3 首装验收"
+                      value={noteDraft ?? storedNote}
+                      maxLength={120}
+                      onChange={(event) => setNoteDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") saveNote();
+                      }}
+                    />
+                  </div>
+                  <Button size="sm" variant="primary" onClick={saveNote}>
+                    写入
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={<RefreshCw size={12} strokeWidth={2} />}
+                    onClick={reloadNote}
+                  >
+                    读回
+                  </Button>
+                </div>
+                <div className="settings-readout">
+                  {noteStatus ?? `当前库中值：${storedNote ? `“${storedNote}”` : "（空）"}`}
+                </div>
+              </div>
+            </SettingCard>
+          </>
+        );
+      case "backup":
+        return (
+          <>
+            <SettingCard
+              title="备份与还原"
+              description="依赖归档格式与还原校验，Phase 1 未实现，入口保持禁用。"
+            >
+              <SettingRow
+                title="导出备份"
+                description="需要 assets 对象库与归档格式，当前版本不生成备份文件。"
+                control={<UnavailableControl />}
+              />
+              <SettingRow
+                title="从文件还原"
+                description="还原会覆盖本地数据，需要校验与事务设计，当前版本不提供。"
+                control={<UnavailableControl />}
+              />
+            </SettingCard>
+            <SettingCard title="更新" description="尚未接入发布通道，不联网检查版本。">
+              <SettingRow
+                title="检查更新"
+                description="安装包升级路径已按覆盖安装处理；应用内检查更新尚未接入。"
+                control={<UnavailableControl />}
+              />
+            </SettingCard>
+          </>
+        );
+      case "about":
+        return (
+          <>
+            <SettingCard title="版本" description="安装包与程序版本保持一致。">
+              <SettingRow
+                title="当前版本"
+                description="发布时附带安装包与 SHA256 校验和。"
+                control={
+                  <span className="settings-row-value">
+                    v{appInfo.data?.appVersion ?? "1.0.3"}
+                  </span>
+                }
+              />
+              <SettingRow
+                title="运行平台"
+                description="当前仅发布 Windows x64 安装包。"
+                control={<span className="settings-row-value">{appInfo.data?.platform ?? "—"}</span>}
+              />
+              <SettingRow
+                title="案例总数"
+                description="统计口径为未软删除的全部案例。"
+                control={<span className="settings-row-value">{appInfo.data?.caseCount ?? 0}</span>}
+              />
+              <div className="settings-row-block">
+                <div className="settings-row-title">数据目录</div>
+                <div className="settings-readout">{appInfo.data?.dataDir ?? "读取中…"}</div>
+              </div>
+            </SettingCard>
+            <SettingCard
+              title="开源许可"
+              description={`依赖白名单：${LICENSE_POLICY.allowed.join(" / ")}；禁止 ${LICENSE_POLICY.forbidden.join(" / ")}。可通过 npm run check:licenses 复跑。`}
+            >
+              <ul className="settings-license-list">
+                {LICENSE_ENTRIES.map((entry) => (
+                  <li key={entry.name} className="settings-license-row">
+                    <span className="settings-license-name">{entry.name}</span>
+                    <span className="settings-license-spdx">{entry.license}</span>
+                    <span className="settings-license-note">{entry.note}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="settings-footnote">
+                完整版权与许可证原文见仓库根目录 THIRD_PARTY_NOTICES.md 与 LICENSE。字体仅使用系统字体栈，安装包内未打包任何字体文件。
+              </p>
+            </SettingCard>
+          </>
+        );
+      default:
+        return null;
+    }
+  })();
+
   return (
-    <section className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b border-line bg-surface px-6 py-4">
-        <div className="label-eyebrow">TOOLS / 设置</div>
-        <div className="mt-1 flex items-center gap-2">
-          <h1 className="text-lg font-semibold tracking-tight text-ink">设置</h1>
-          <span className="rounded-pill border border-line px-2 py-0.5 font-mono text-2xs text-ink-faint">
-            {appInfo.data?.appVersion ? `v${appInfo.data.appVersion}` : "v1.0.3"}
-          </span>
+    <section className="settings-view">
+      <aside className="settings-rail" aria-label="设置分区">
+        <div className="settings-rail-head">
+          <div className="settings-search">
+            <Search size={14} strokeWidth={1.8} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              aria-label="搜索设置"
+              placeholder="搜索设置"
+              onChange={(event) => changeQuery(event.target.value)}
+            />
+            {query ? (
+              <button
+                type="button"
+                className="settings-search-clear"
+                aria-label="清空搜索"
+                onClick={() => setQuery("")}
+              >
+                <X size={12} strokeWidth={2} aria-hidden />
+              </button>
+            ) : null}
+          </div>
         </div>
-        <p className="mt-1 text-meta leading-normal text-ink-faint">
-          偏好写入 SQLite 的 settings 表；主题默认跟随系统，手动选择后不再跟随。
-        </p>
-      </header>
+
+        <nav className="settings-rail-nav" aria-label="设置分组">
+          {filteredGroups.length === 0 ? (
+            <p className="settings-rail-empty">没有匹配的设置</p>
+          ) : (
+            filteredGroups.map((group) => (
+              <div key={group.id} className="settings-rail-group">
+                <div className="settings-rail-label">{group.label}</div>
+                {group.sections.map((section) => {
+                  const Icon = section.icon;
+                  const active = section.id === sectionId;
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      className={active ? "settings-rail-item is-active" : "settings-rail-item"}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setSectionId(section.id)}
+                    >
+                      <Icon size={15} strokeWidth={1.7} aria-hidden />
+                      <span>{section.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </nav>
+      </aside>
 
       <div
         id="content-list"
         tabIndex={-1}
-        className="min-h-0 flex-1 overflow-y-auto px-6 py-5 focus-visible:outline-none"
+        className="settings-content focus-visible:outline-none"
       >
-        <div className="mx-auto flex max-w-2xl flex-col gap-5">
-          <Card className="bg-raised px-4 py-2">
-            <div className="label-eyebrow py-2">外观</div>
-            <SettingRow
-              title="主题模式"
-              description="跟随系统时监听 Windows 明暗变化并实时切换；深色/浅色是手动偏好。"
-            >
-              <SegmentedControl
-                label="主题模式"
-                options={THEME_OPTIONS}
-                value={themeMode}
-                onChange={changeTheme}
-              />
-            </SettingRow>
-            <SettingRow
-              title="减少动效"
-              description="开启后预览只播放一次、不循环；系统 prefers-reduced-motion 也会被识别。"
-            >
-              <Switch
-                label="减少动效"
-                checked={reduceMotion}
-                onChange={changeReduceMotion}
-                description=""
-              />
-            </SettingRow>
-            <SettingRow
-              title="面板宽度"
-              description={`左栏 ${leftWidth}px · 中栏 ${middleWidth}px；拖动分隔条会实时保存。`}
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<RotateCcw size={12} strokeWidth={2} />}
-                onClick={restoreLayout}
-              >
-                恢复默认
-              </Button>
-            </SettingRow>
-          </Card>
-
-          <Card className="bg-raised px-4 py-2">
-            <div className="label-eyebrow py-2">数据通路</div>
-            <SettingRow
-              title="本地数据库"
-              description="应用启动时自动建库并执行版本迁移；数据文件位于应用数据目录。"
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<RefreshCw size={12} strokeWidth={2} />}
-                onClick={() => {
-                  appInfo.refetch();
-                  settings.refetch();
-                }}
-              >
-                重新读取
-              </Button>
-            </SettingRow>
-            <div className="flex flex-col gap-2 py-3">
-              <div className="flex items-center gap-2 text-xs text-ink-faint">
-                <Database size={13} strokeWidth={1.7} aria-hidden />
-                <span className="font-mono text-2xs">{appInfo.data?.dbPath ?? "读取中…"}</span>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-2xs text-ink-faint">
-                <span>案例 {appInfo.data?.caseCount ?? 0} 条</span>
-                <span>平台 {appInfo.data?.platform ?? "—"}</span>
-                <span>目录 {appInfo.data?.dataDir ?? "—"}</span>
-              </div>
-              {appInfo.isError ? (
-                <p className="text-2xs text-danger">读取失败：{appInfo.error.message}</p>
-              ) : null}
-            </div>
-
-            <div className="border-t border-line py-3">
-              <div className="text-sm font-medium text-ink">写入并读回一条设置</div>
-              <p className="mt-0.5 text-xs leading-normal text-ink-faint">
-                写入 settings 表后立即可读回；重启应用后该值仍然存在。
-              </p>
-              <div className="mt-2.5 flex flex-wrap items-end gap-2">
-                <div className="min-w-40 flex-1">
-                  <Input
-                    aria-label="备注内容"
-                    placeholder="输入一段备注，例如 1.0.0 首装验收"
-                    value={noteDraft ?? storedNote}
-                    maxLength={120}
-                    onChange={(event) => setNoteDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") saveNote();
-                    }}
-                  />
-                </div>
-                <Button size="sm" variant="primary" onClick={saveNote}>
-                  写入
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon={<RefreshCw size={12} strokeWidth={2} />}
-                  onClick={reloadNote}
-                >
-                  读回
-                </Button>
-              </div>
-              <div
-                className={cn(
-                  "mt-2 rounded-xs border border-line bg-sunken px-2 py-1.5 font-mono text-2xs",
-                  noteStatus ? "text-ink-soft" : "text-ink-faint",
-                )}
-              >
-                {noteStatus ?? `当前库中值：${storedNote ? `“${storedNote}”` : "（空）"}`}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="bg-raised px-4 py-2">
-            <div className="label-eyebrow py-2">尚未实现（禁用并说明原因）</div>
-            <SettingRow
-              title="导出备份"
-              description="备份导出依赖 assets 对象库与归档格式，Phase 1 未实现，入口保持禁用。"
-            >
-              <Tooltip content="需要备份格式与还原校验，Phase 1 未实现，因此禁用">
-                <span tabIndex={0}>
-                  <Button size="sm" variant="secondary" disabled icon={<Download size={12} strokeWidth={2} />}>
-                    导出
-                  </Button>
-                </span>
-              </Tooltip>
-            </SettingRow>
-            <SettingRow
-              title="从文件还原"
-              description="还原会覆盖本地数据，需要校验与事务设计，Phase 1 未实现。"
-            >
-              <Tooltip content="还原流程尚未实现，禁用避免误覆盖数据">
-                <span tabIndex={0}>
-                  <Button size="sm" variant="secondary" disabled icon={<Upload size={12} strokeWidth={2} />}>
-                    还原
-                  </Button>
-                </span>
-              </Tooltip>
-            </SettingRow>
-            <SettingRow title="检查更新" description="尚未接入发布通道，Phase 1 不联网检查版本。">
-              <Tooltip content="未接入更新服务，禁用">
-                <span tabIndex={0}>
-                  <Button size="sm" variant="secondary" disabled>
-                    检查更新
-                  </Button>
-                </span>
-              </Tooltip>
-            </SettingRow>
-          </Card>
-
-          <Card className="bg-raised px-4 py-2">
-            <div className="label-eyebrow py-2">关于 / 开源许可</div>
-            <div className="border-b border-line py-3">
-              <div className="text-sm font-semibold tracking-[0.08em] text-ink">界序 INTERFACE</div>
-              <p className="mt-0.5 text-xs leading-normal text-ink-faint">
-                版本 {appInfo.data?.appVersion ?? "1.0.3"} · 本项目以 MIT 许可证发布；全部示例案例与演示为自绘。
-              </p>
-              <p className="mt-1 text-2xs leading-normal text-ink-faint">
-                依赖白名单：{LICENSE_POLICY.allowed.join(" / ")}；禁止 {LICENSE_POLICY.forbidden.join(" / ")}。
-                可通过 npm run check:licenses 复跑。
-              </p>
-            </div>
-            <ul className="divide-y divide-line">
-              {LICENSE_ENTRIES.map((entry) => (
-                <li key={entry.name} className="flex items-center gap-3 py-1.5">
-                  <span className="min-w-0 flex-1 truncate text-meta text-ink-soft">{entry.name}</span>
-                  <span className="shrink-0 font-mono text-2xs text-ink">{entry.license}</span>
-                  <span className="hidden shrink-0 text-2xs text-ink-faint sm:inline">{entry.note}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="border-t border-line py-2 text-2xs leading-normal text-ink-faint">
-              完整版权与许可证原文见仓库根目录 THIRD_PARTY_NOTICES.md 与 LICENSE。
-              字体仅使用系统字体栈，安装包内未打包任何字体文件。
-            </p>
-          </Card>
+        <div className="settings-content-inner">
+          <header className="settings-page-head">
+            <h1 className="settings-page-title">{activeSection.title}</h1>
+            <p className="settings-page-desc">{activeSection.description}</p>
+          </header>
+          <div className="settings-section">{sectionContent}</div>
         </div>
       </div>
     </section>

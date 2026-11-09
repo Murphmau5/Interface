@@ -30,6 +30,17 @@
   --grid-line: var(--theme-grid-line);
   --scrim: var(--theme-scrim);
 
+  /* 自绘标题栏与行悬停：值由主题层提供，组件只引用这一层 */
+  --titlebar-bg: var(--theme-titlebar-bg);
+  --titlebar-border: var(--theme-titlebar-border);
+  --titlebar-ink: var(--theme-titlebar-ink);
+  --titlebar-ink-soft: var(--theme-titlebar-ink-soft);
+  --titlebar-hover-bg: var(--theme-titlebar-hover-bg);
+  --titlebar-active-bg: var(--theme-titlebar-active-bg);
+  --titlebar-close-hover-bg: var(--theme-titlebar-close-hover-bg);
+  --titlebar-close-hover-ink: var(--theme-titlebar-close-hover-ink);
+  --row-hover-bg: var(--theme-row-hover-bg);
+
   /* 预览示例的双主题样品色：组件只能引用这层，不直接写色值 */
   --demo-dark-bg: var(--theme-demo-dark-bg);
   --demo-dark-surface: var(--theme-demo-dark-surface);
@@ -75,6 +86,45 @@
   --line-normal: 1.55;
   --tracking-label: 0.08em;
   --tracking-tight: -0.01em;
+
+  /* Typography ladder —— 页标题 / 区块标题 / 行标题 / 正文 / 辅助 */
+  --type-page-size: 22px;
+  --type-page-line: 1.3;
+  --type-page-weight: 600;
+  --type-section-size: 15px;
+  --type-section-line: 1.4;
+  --type-section-weight: 600;
+  --type-row-size: 13px;
+  --type-row-line: 1.45;
+  --type-row-weight: 500;
+  --type-body-size: 13px;
+  --type-body-line: 1.55;
+  --type-body-weight: 400;
+  --type-caption-size: 12px;
+  --type-caption-line: 1.5;
+  --type-caption-weight: 400;
+
+  /* 设置页密度：行高 44–48、卡片内边距 12–16 */
+  --settings-rail-width: 248px;
+  --settings-content-max: 720px;
+  --settings-control-height: 32px;
+  --settings-row-min-height: 46px;
+  --settings-row-pad-x: 16px;
+  --settings-row-pad-y: 10px;
+  --settings-row-desc-gap: 2px;
+  --settings-card-head-pad-y: 14px;
+  --settings-section-gap: var(--space-7);
+
+  /* 开关尺寸：组件只引用，不写死像素 */
+  --switch-width: 36px;
+  --switch-height: 20px;
+  --switch-thumb-size: 12px;
+  --switch-inset: 3px;
+  --switch-travel: 16px;
+
+  /* 自绘标题栏尺寸 */
+  --titlebar-height: 40px;
+  --titlebar-button-width: 46px;
 
   /* Motion */
   --motion-fast: 120ms;
