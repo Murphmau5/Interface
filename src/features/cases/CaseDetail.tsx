@@ -50,7 +50,7 @@ import {
   PARAM_KEY_LABELS,
   PARAM_SOURCE_LABELS,
   parseCasePrompt,
-  parseParamSources,
+  parseParamEvidence,
   parsePreviewSpec,
   serializePreview,
   type PreviewKind,
@@ -63,6 +63,8 @@ interface CaseDetailProps {
   favoriteBusy: boolean;
   onToggleFavorite: (id: string) => void;
   onDeleted: () => void;
+  /** 对比覆盖层打开时暂停中栏预览 */
+  previewPaused?: boolean;
 }
 
 const PREVIEW_KINDS: PreviewKind[] = ["motion", "feedback", "component", "theme", "style"];
@@ -353,6 +355,7 @@ export function CaseDetail({
   favoriteBusy,
   onToggleFavorite,
   onDeleted,
+  previewPaused = false,
 }: CaseDetailProps) {
   const [draftTitle, setDraftTitle] = useState(item.title);
   const [renaming, setRenaming] = useState(false);
@@ -399,7 +402,8 @@ export function CaseDetail({
   const confidenceLabel = CONFIDENCE_LABELS[item.confidence] ?? item.confidence;
   const platformLabel = PLATFORM_LABELS[item.platform] ?? item.platform;
   const tagLabels = tagsQuery.data?.map((tag) => tag.label) ?? [];
-  const paramSources = parseParamSources(item.payloadJson);
+  const evidence = parseParamEvidence(item.payloadJson);
+  const paramSources = evidence?.sources ?? null;
   const casePrompt = parseCasePrompt(item.payloadJson) ?? buildPreviewPrompt(spec);
 
   // 切走案例时把未落库的参数补写一次，避免拖完滑块直接切走丢改动
@@ -658,6 +662,21 @@ export function CaseDetail({
                 <span className="confidence-dot" data-tone={item.confidence} />
                 {confidenceLabel}
               </span>
+              {evidence?.binding ? (
+                <span
+                  className="chip"
+                  data-binding={evidence.binding.bound ? "platform" : "generic"}
+                  title={
+                    evidence.binding.bound
+                      ? `${evidence.binding.platform ?? ""} ${evidence.binding.version ?? ""}`.trim()
+                      : "通用控件，不绑定平台规范"
+                  }
+                >
+                  {evidence.binding.bound
+                    ? `${evidence.binding.platform} · ${evidence.binding.version}`
+                    : "非平台绑定"}
+                </span>
+              ) : null}
               {categoryLabel ? (
                 <span className="chip" data-tone="accent">
                   {categoryLabel}
@@ -721,7 +740,12 @@ export function CaseDetail({
                 </span>
               }
             />
-            <PreviewPanel spec={spec} onChange={handleSpecChange} />
+            <PreviewPanel
+              spec={spec}
+              onChange={handleSpecChange}
+              paused={previewPaused}
+              evidence={evidence}
+            />
             {paramSources ? (
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <span className="text-2xs text-ink-faint">参数来源</span>

@@ -8,6 +8,7 @@ mod fetch;
 #[cfg(test)]
 mod e2e;
 mod html_sanitize;
+mod param_evidence;
 mod preview;
 mod search;
 mod secrets;
@@ -69,6 +70,7 @@ fn dispatch(invoke: tauri::ipc::Invoke<tauri::Wry>) -> bool {
             commands::content::content_package_check_update,
             commands::content::content_package_apply_update,
             commands::system::app_info,
+            commands::system::system_open_url,
         ]
     }
 
@@ -147,7 +149,7 @@ fn import_builtin_content(app: &tauri::AppHandle, pool: &sqlx::SqlitePool) {
     let Ok(resource_dir) = app.path().resource_dir() else {
         return;
     };
-    let path = resource_dir.join("content").join("jiexu-content-v1.zip");
+    let path = resource_dir.join("content").join("jiexu-content-v2.zip");
     if !path.is_file() {
         // 开发构建未打包资源时静默跳过
         return;

@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::db::Db;
 use crate::error::AppError;
+use crate::param_evidence;
 use crate::search;
 
 pub const CASE_KINDS: [&str; 5] = ["style", "motion", "feedback", "component", "theme"];
@@ -389,6 +390,8 @@ pub(crate) async fn create_case(
 
     let payload = input.payload_json.unwrap_or_else(|| "{}".into());
     validate_payload(&payload)?;
+    // 参数级 verified 必须带有效 specRef；写入前统一归一化
+    let (payload, _evidence_notes) = param_evidence::normalize_payload_str(&payload);
 
     let category_id = clean(input.category_id);
     if let Some(category) = &category_id {
@@ -446,6 +449,7 @@ pub async fn cases_update_payload(
     payload_json: String,
 ) -> Result<CaseSummary, AppError> {
     validate_payload(&payload_json)?;
+    let (payload_json, _evidence_notes) = param_evidence::normalize_payload_str(&payload_json);
 
     let affected = sqlx::query(
         r#"

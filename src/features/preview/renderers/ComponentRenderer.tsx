@@ -248,6 +248,12 @@ export function ComponentRenderer({
       ref={rootRef}
       className="pv-component"
       data-interactive={interactive ? "true" : "false"}
+      data-hit-target={component.hitTarget ?? undefined}
+      style={
+        component.hitTarget
+          ? ({ "--hit-target": `${component.hitTarget}px` } as CSSProperties)
+          : undefined
+      }
       aria-label={`可交互组件示例：${COMPONENT_CONTROL_LABELS[component.control]}`}
     >
       {component.control === "switch" ? (

@@ -1,6 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, Download, Layers, LayoutGrid, List, Plus, RotateCcw, Search, X } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Copy,
+  Download,
+  Layers,
+  LayoutGrid,
+  List,
+  Plus,
+  RotateCcw,
+  Search,
+  X,
+} from "lucide-react";
 
 import { PanelLayout } from "@/components/layout/PanelLayout";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +21,7 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { useDiscoveryFetchUrl, useDiscoverySearch } from "@/features/candidates/api";
+import { CaseCompare } from "@/features/cases/CaseCompare";
 import { CaseDetail } from "@/features/cases/CaseDetail";
 import { CaseList } from "@/features/cases/CaseList";
 import { CreateCaseForm } from "@/features/cases/CreateCaseForm";
@@ -23,6 +35,7 @@ import {
   useToggleFavorite,
 } from "@/features/cases/api";
 import { useAiSettings } from "@/features/settings/api";
+import { useHoverPreviewStore } from "@/features/preview/hoverStore";
 import {
   CASE_KIND_DESCRIPTIONS,
   CASE_KIND_LABELS,
@@ -206,6 +219,11 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const [onlineMessage, setOnlineMessage] = useState<string | null>(null);
   // 联网结果只作为「网络候选」展示，不并入 items、不参与本地排序
   const [onlineResults, setOnlineResults] = useState<DiscoveryBatchResult | null>(null);
+  // 对比是覆盖层：退出后中栏的搜索、筛选、选中与滚动位置都还在
+  const [comparePair, setComparePair] = useState<{
+    left: CaseSummary;
+    right: CaseSummary;
+  } | null>(null);
 
   // 220ms 防抖后再把输入写入唯一筛选状态，查询由 SQL 执行
   useEffect(() => {
@@ -496,6 +514,26 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
   const handleClearSelection = () => {
     updateSelection(() => new Set<string>());
     setSelectionStatus(null);
+  };
+
+  const closeCompare = useCallback(() => setComparePair(null), []);
+
+  // 对比只接受 2 条：超过 2 条不静默截断，按钮禁用并写明原因
+  const compareEnabled = multiSelectedIds.size === 2;
+  const compareHint =
+    multiSelectedIds.size > 2
+      ? `已选 ${multiSelectedIds.size} 条，对比只支持 2 条，先取消多余的`
+      : multiSelectedIds.size === 1
+        ? "再选 1 条才能对比"
+        : "选中 2 条后可以并排对比";
+
+  const openCompare = () => {
+    if (!compareEnabled) return;
+    const picked = items.filter((item) => multiSelectedIds.has(item.id));
+    if (picked.length !== 2) return;
+    // 指针可能还停在卡片上，先收起悬停预览，避免覆盖层下面再挂一套动画
+    useHoverPreviewStore.getState().hide();
+    setComparePair({ left: picked[0], right: picked[1] });
   };
 
   const handleCopySelection = () => {
@@ -799,7 +837,21 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
               已选 {multiSelectedIds.size} 条
             </span>
             <span className="text-2xs text-ink-faint">复制 / 导出只作用于这些条目</span>
+            <span data-compare-hint className="text-2xs text-ink-faint">
+              {compareHint}
+            </span>
             <div className="ml-auto flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                data-compare-action
+                disabled={!compareEnabled}
+                title={compareHint}
+                icon={<ArrowLeftRight size={12} strokeWidth={1.9} aria-hidden />}
+                onClick={openCompare}
+              >
+                对比
+              </Button>
               <Button
                 size="sm"
                 variant="secondary"
@@ -1009,6 +1061,7 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
       favoriteBusy={favoriteBusyId === selected.id}
       onToggleFavorite={handleToggleFavorite}
       onDeleted={() => setSelectedId(null)}
+      previewPaused={comparePair !== null}
     />
   ) : (
     <div className="flex h-full items-center justify-center p-8">
@@ -1021,5 +1074,12 @@ export function CaseWorkspace(props: CaseWorkspaceProps) {
     </div>
   );
 
-  return <PanelLayout label={title} middle={middle} detail={detail} />;
+  return (
+    <div className="relative flex h-full min-h-0 w-full">
+      <PanelLayout label={title} middle={middle} detail={detail} />
+      {comparePair ? (
+        <CaseCompare left={comparePair.left} right={comparePair.right} onExit={closeCompare} />
+      ) : null}
+    </div>
+  );
 }

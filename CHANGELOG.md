@@ -2,6 +2,32 @@
 
 > 面向用户与维护者的变更摘要；详细过程见 `PROJECT_LOG.md`。
 
+## [1.0.15] — 2026-11-10
+
+参数不再「看起来可信」：带官方原文的参数才有 `verified`，其余最高 `estimated`，界面上点开就能看到出处；同时补上并排对比两条案例。
+
+### Added
+
+- **`specRef` 证据链**：参数可挂 `{ platform, version, component, url, quote }`。硬规则：五字段齐全、URL 为 `https`、`quote` 与数值一一对应，才允许参数级 `verified`；缺 `specRef` 一律最高 `estimated`。Rust 入库 / 内容包导入与前端解析双端同口径校验。
+- **参数证据弹层**：参数行来源点可点开，显示平台版本、组件、原文引句与「打开官方文档」；没有 `specRef` 的参数显示「无官方原文，来源为推测」。
+- **口径徽标**：平台条目绑定版本（Material 3 Expressive 2025+、Fluent 2 global tokens、Apple HIG 2025、HarmonyOS Design 2024+），通用控件标「非平台绑定」。
+- **`hitTarget` 热区参数**：8 个需要外扩热区的控件补 `hitTarget: 24`，引 WCAG 2.2 SC 2.5.8 原文，附 M3 48dp / HIG 44pt / 鸿蒙 48vp·40vp 参考值；热区透明外扩，不改控件视觉。
+- **并排对比**：多选两条后进入对比视图，左右两套真实预览渲染器同屏，参数差异逐行标注；对比打开时右栏详情预览暂停，悬停微预览收起。
+- **无头回归** `scripts/ui-shot/spec-ref-check.mjs`（19 项）与 `scripts/ui-shot/compare-check.mjs`（15 项）。
+
+### Changed
+
+- `style.material3` 缓动由 M2 的 `cubic-bezier(0.4,0,0.2,1)` 改为 M3 Standard `cubic-bezier(0.2,0,0,1)`，并补官方原文。
+- 内容包格式版本 1 → 2；老包（格式 1）仍可导入，缺 `specRef` 的 `verified` 在导入时自动降为 `estimated`。
+- 预览载荷版本 2 → 3，新增 `paramSources` / `paramRefs` / `paramRefAlts` / `specBinding`。
+- 通用控件数值零改动：那是设计选择，不是错误。
+- 内容包导入 / 更新摘要新增「参数降级 N 项」，便于核对老包进来时有多少参数被降为 `estimated`。
+
+### Fixed
+
+- 对比视图同时挂着两套预览渲染器时，底层详情预览仍在播放，退出后留下多余的动画对象；现在进入对比即暂停底层预览。
+
+
 ## [1.0.14] — 2026-11-10
 
 自用高频的两件事：把案例喂给 AI（详情页复制提示词 / 复制为 Markdown、多选与批量复制导出），以及把主搜索框真正接上双作用域（默认只搜本地，`Ctrl+Enter` 才联网，结果单独成块）。

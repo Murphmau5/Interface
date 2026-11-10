@@ -32,6 +32,7 @@ function statsText(stats: ContentPackageStats): string {
     stats.skippedModified ? `保留用户改动 ${stats.skippedModified}` : "",
     stats.skippedDeleted ? `跳过已删除 ${stats.skippedDeleted}` : "",
     stats.removed ? `移除 ${stats.removed}` : "",
+    stats.degradedParams ? `参数降级 ${stats.degradedParams}` : "",
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "没有条目需要变化";
 }

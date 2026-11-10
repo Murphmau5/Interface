@@ -13,11 +13,11 @@ const sourcePath = join(here, "items.json");
 const keyPath = join(here, "signing-key.pem");
 const publicKeyPath = join(here, "public-key.txt");
 const outRoot = join(root, "dist", "content");
-const stageDir = join(outRoot, "jiexu-v1");
-const zipPath = join(outRoot, "jiexu-content-v1.zip");
+const stageDir = join(outRoot, "jiexu-v2");
+const zipPath = join(outRoot, "jiexu-content-v2.zip");
 // 随安装包分发的内置副本：tauri.conf.json 的 bundle.resources 指向这里
 const resourceDir = join(root, "src-tauri", "resources", "content");
-const resourceZipPath = join(resourceDir, "jiexu-content-v1.zip");
+const resourceZipPath = join(resourceDir, "jiexu-content-v2.zip");
 
 const EXPECTED_COUNTS = { style: 19, theme: 6, component: 33, motion: 10, feedback: 10 };
 const TOTAL_EXPECTED = 78;
@@ -75,7 +75,86 @@ function sourcesFor(item) {
     else if (timing.includes(key)) out[key] = "user_defined";
     else out[key] = "estimated";
   }
+  // 条目可以显式覆盖参数级来源（例如带官方原文的 verified）
+  for (const [key, level] of Object.entries(item.paramSources ?? {})) {
+    out[key] = level;
+  }
   return out;
+}
+
+/* ------------------------------ 证据校验 ------------------------------ */
+
+function compact(text) {
+  return String(text).replace(/\s+/g, "");
+}
+
+function numberTokens(text) {
+  return String(text).match(/\d+(?:\.\d+)?/g) ?? [];
+}
+
+function containsNumber(quote, token) {
+  let start = 0;
+  const boundary = (ch) => ch === undefined || !/[\d.]/.test(ch);
+  for (;;) {
+    const index = quote.indexOf(token, start);
+    if (index < 0) return false;
+    if (boundary(quote[index - 1]) && boundary(quote[index + token.length])) return true;
+    start = index + token.length;
+  }
+}
+
+function bezierValues(text) {
+  const match = String(text).match(/cubic-bezier\(([^)]*)\)/);
+  if (!match) return null;
+  const values = match[1]
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((value) => Number.isFinite(value));
+  return values.length === 4 ? values : null;
+}
+
+function quoteMatches(actual, ref) {
+  if (typeof actual === "number") return containsNumber(ref.quote, String(actual));
+  if (typeof actual !== "string") return false;
+  const value = actual.trim();
+  if (value.startsWith("cubic-bezier")) {
+    const expected = bezierValues(value);
+    const quoted = bezierValues(ref.quote);
+    return Boolean(
+      expected && quoted && expected.every((number, index) => number === quoted[index]),
+    );
+  }
+  const tokens = numberTokens(value);
+  if (tokens.length === 0) return compact(ref.quote).includes(compact(value));
+  return tokens.every((token) => containsNumber(ref.quote, token));
+}
+
+function validRef(ref) {
+  if (!ref || typeof ref !== "object") return false;
+  return ["platform", "version", "component", "url", "quote"].every(
+    (key) => typeof ref[key] === "string" && ref[key].trim().length > 0,
+  ) && typeof ref.url === "string" && ref.url.startsWith("https://");
+}
+
+function validateEvidence(item) {
+  const sources = sourcesFor(item);
+  for (const [key, level] of Object.entries(sources)) {
+    if (level !== "verified") continue;
+    const ref = item.paramRefs?.[key];
+    if (!validRef(ref)) fail(`条目 ${item.id} 的 ${key} 声称 verified，但缺少合法 specRef`);
+    if (!(key in item.preview)) fail(`条目 ${item.id} 的 ${key} 不在 preview 中`);
+    if (!quoteMatches(item.preview[key], ref)) {
+      fail(`条目 ${item.id} 的 ${key} 原文引句与数值不对应`);
+    }
+  }
+  for (const [key, ref] of Object.entries(item.paramRefs ?? {})) {
+    if (!validRef(ref)) fail(`条目 ${item.id} 的 specRef.${key} 不完整或 URL 非 https`);
+  }
+  for (const [key, list] of Object.entries(item.paramRefAlts ?? {})) {
+    if (!Array.isArray(list) || !list.every(validRef)) {
+      fail(`条目 ${item.id} 的 paramRefAlts.${key} 含不合法参考值`);
+    }
+  }
 }
 
 function validate(data) {
@@ -112,6 +191,7 @@ function validate(data) {
       }
       assertRange(item.kind, key, value);
     }
+    validateEvidence(item);
     counts[item.kind] = (counts[item.kind] ?? 0) + 1;
   }
   for (const [kind, expected] of Object.entries(EXPECTED_COUNTS)) {
@@ -232,10 +312,13 @@ const manifestItems = [];
 const manifestFiles = [];
 for (const item of data.items) {
   const payload = {
-    v: 2,
+    v: 3,
     preview: item.preview,
     prompt: item.prompt,
     paramSources: sourcesFor(item),
+    ...(item.paramRefs ? { paramRefs: item.paramRefs } : {}),
+    ...(item.paramRefAlts ? { paramRefAlts: item.paramRefAlts } : {}),
+    ...(item.specBinding ? { specBinding: item.specBinding } : {}),
   };
   const text = `${JSON.stringify(payload, null, 2)}\n`;
   const relative = `content/${item.id}.json`;
@@ -258,7 +341,7 @@ for (const item of data.items) {
 
 const manifest = {
   format: "jiexu.content-package",
-  formatVersion: 1,
+  formatVersion: 2,
   id: data.package.id,
   name: data.package.name,
   version: data.package.version,

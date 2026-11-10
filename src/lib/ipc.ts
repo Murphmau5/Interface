@@ -317,6 +317,8 @@ export interface ContentPackageStats {
   removed: number;
   keptModified: number;
   keptFavorite: number;
+  /** 本次导入中被降级的参数个数：声称 verified 但缺 specRef 或原文对不上 */
+  degradedParams: number;
 }
 
 export interface ContentPackageItemOutcome {
@@ -463,6 +465,7 @@ export const ipc = {
 
   catalogList: () => call<CatalogDomain[]>("catalog_list"),
   appInfo: () => call<AppInfo>("app_info"),
+  systemOpenUrl: (url: string) => call<void>("system_open_url", { url }),
 
   contentPackagesList: () =>
     call<InstalledContentPackage[]>("content_packages_list"),

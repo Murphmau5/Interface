@@ -29,3 +29,31 @@ pub async fn app_info(app: AppHandle, db: State<'_, Db>) -> Result<AppInfo, AppE
         case_count,
     })
 }
+
+/// 用系统默认浏览器打开参数证据链接；只接受 https，避免命令注入。
+#[tauri::command]
+pub async fn system_open_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    let valid = trimmed.starts_with("https://")
+        && trimmed.len() <= 600
+        && !trimmed
+            .chars()
+            .any(|ch| ch.is_whitespace() || ch.is_control());
+    if !valid {
+        return Err("只允许打开 https 链接".into());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", trimmed])
+            .spawn()
+            .map_err(|err| format!("打开链接失败：{err}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = trimmed;
+        return Err("当前平台暂不支持打开外部链接".into());
+    }
+    Ok(())
+}

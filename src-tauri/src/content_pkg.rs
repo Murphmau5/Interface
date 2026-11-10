@@ -25,12 +25,16 @@ use sqlx::{FromRow, SqlitePool};
 use crate::commands::cases::{CASE_KINDS, CONFIDENCE_VALUES};
 use crate::error::AppError;
 use crate::html_sanitize::{sanitize_bytes, SanitizeState};
+use crate::param_evidence;
 use crate::search;
 
 pub const MANIFEST_NAME: &str = "manifest.json";
 pub const SIGNATURE_NAME: &str = "signature.txt";
 pub const FORMAT_NAME: &str = "jiexu.content-package";
-pub const FORMAT_VERSION: u32 = 1;
+#[cfg_attr(not(test), allow(dead_code))]
+pub const FORMAT_VERSION: u32 = 2;
+/// 仍可导入的老格式：v1 没有 specRef，按「最高 estimated」降级处理。
+pub const SUPPORTED_FORMAT_VERSIONS: [u32; 2] = [1, 2];
 
 /// 内置发布公钥（V1 内容包签名密钥）。可用设置项 `content.trustedKeys`
 /// 追加自建签名公钥；内置公钥始终可信。
@@ -176,6 +180,8 @@ pub struct ImportStats {
     pub removed: i64,
     pub kept_modified: i64,
     pub kept_favorite: i64,
+    /// 本次导入中被降级的参数个数：声称 verified 但缺 specRef 或原文对不上。
+    pub degraded_params: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -581,11 +587,11 @@ pub fn load_package(
             format!("不是界序内容包（format = {}）", manifest.format),
         ));
     }
-    if manifest.format_version != FORMAT_VERSION {
+    if !SUPPORTED_FORMAT_VERSIONS.contains(&manifest.format_version) {
         return Err(pkg_err(
             "E_PKG_MANIFEST",
             format!(
-                "内容包格式版本 {} 不受支持（当前支持 {FORMAT_VERSION}）",
+                "内容包格式版本 {} 不受支持（当前支持 1、2）",
                 manifest.format_version
             ),
         ));
@@ -764,6 +770,8 @@ struct PreparedItem {
     version: String,
     tags: Vec<String>,
     hash: String,
+    /// 该条目在归一化时被降级的参数个数
+    degraded: i64,
 }
 
 fn item_hash(
@@ -864,6 +872,8 @@ fn prepare_items(pkg: &LoadedPackage) -> Result<Vec<PreparedItem>, AppError> {
             });
         }
 
+        // 参数级 verified 必须带有效 specRef；v1 老包没有 ref，统一降级后入库
+        let evidence_notes = param_evidence::normalize_payload(&mut payload);
         let payload_json = payload.to_string();
         if payload_json.len() > MAX_PAYLOAD_BYTES {
             return Err(item_err(format!(
@@ -908,6 +918,7 @@ fn prepare_items(pkg: &LoadedPackage) -> Result<Vec<PreparedItem>, AppError> {
             version: item.version.clone(),
             tags,
             hash,
+            degraded: evidence_notes.len() as i64,
         });
     }
 
@@ -1297,6 +1308,11 @@ pub async fn import_package(
                 }
             }
         };
+
+        // 只有真正写库的条目才计入降级数；被保留的用户改动没有落库，不重复计
+        if outcome == "created" || outcome == "updated" {
+            stats.degraded_params += item.degraded;
+        }
 
         if outcomes.len() < MAX_REPORT_ITEMS {
             outcomes.push(ItemOutcome {
@@ -2013,6 +2029,61 @@ mod tests {
 
         let packages = list_packages(&pool).await.expect("列出内容包");
         assert_eq!(packages.len(), 1);
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn imports_format_v1_package_and_degrades_params_without_spec_ref() {
+        let (pool, dir) = test_pool().await;
+
+        // 格式 1 的老包：manifest 版本仍是 1，载荷是 v2 口径、声称 verified 但没有 specRef
+        let mut manifest = base_manifest("1.0.1");
+        manifest.format_version = 1;
+        manifest.items.push(manifest_item("legacy", "1.0.1"));
+        let legacy = serde_json::json!({
+            "preview": { "radiusPx": 24, "easing": "ease-out" },
+            "paramSources": { "radiusPx": "verified", "easing": "verified" },
+            "paramRefs": {
+                "radiusPx": {
+                    "platform": "Material 3",
+                    "version": "Expressive 2025+",
+                    "component": "Shape · corner radius",
+                    "url": "https://m3.material.io/styles/shape/overview",
+                    "quote": "24 dp"
+                }
+            }
+        })
+        .to_string()
+        .into_bytes();
+        let payloads = vec![("content/legacy.json".to_string(), legacy)];
+        let manifest = prepare_manifest(manifest, &payloads);
+        let package = build_package(&manifest, &payloads);
+        let (_, public) = test_key();
+
+        let report = import_package(
+            &pool,
+            &package,
+            "local",
+            Some("<test>"),
+            &[public],
+            &PackageLimits::default(),
+        )
+        .await
+        .expect("格式 1 老包仍应可导入");
+        assert_eq!(report.stats.created, 1);
+        assert_eq!(report.stats.degraded_params, 1);
+
+        let payload_json: String = sqlx::query_scalar(
+            "SELECT payload_json FROM cases WHERE id = 'pkg:demo.pack:legacy'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("读取降级后的条目");
+        let value: serde_json::Value = serde_json::from_str(&payload_json).expect("载荷是 JSON");
+        assert_eq!(value["paramSources"]["radiusPx"], "verified");
+        assert_eq!(value["paramSources"]["easing"], "estimated");
 
         drop(pool);
         let _ = std::fs::remove_dir_all(dir);

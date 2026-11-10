@@ -274,6 +274,24 @@
   pointer-events: none;
 }
 
+/* 需要外扩热区的控件：透明点击区，不改视觉与布局 */
+.pv-component[data-hit-target]
+  > :is(button, [role="switch"], [role="checkbox"], [role="radio"], input, [data-pv-tab], [data-pv-segment]) {
+  position: relative;
+}
+
+.pv-component[data-hit-target]
+  > :is(button, [role="switch"], [role="checkbox"], [role="radio"], input, [data-pv-tab], [data-pv-segment])::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit-target, 24px);
+  height: var(--hit-target, 24px);
+  transform: translate(-50%, -50%);
+  background: transparent;
+}
+
 .pv-switch {
   position: relative;
   width: 46px;

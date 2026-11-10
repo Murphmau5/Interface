@@ -97,6 +97,8 @@ export interface ComponentSpec {
   control: ComponentControl;
   durationMs: number;
   easing: string;
+  /** 最小可点击热区（CSS px）；只有需要外扩热区的条目才带 */
+  hitTarget?: number;
 }
 
 export interface ThemeSpec {
@@ -407,6 +409,9 @@ function parseComponent(raw: Record<string, unknown>): ComponentSpec {
     control: oneOf(raw.control, COMPONENT_CONTROLS, "switch"),
     durationMs: round(clamp(raw.durationMs, 80, 1200, 220)),
     easing: pickEasing(raw.easing, DEFAULT_EASING),
+    ...(typeof raw.hitTarget === "number"
+      ? { hitTarget: round(clamp(raw.hitTarget, 24, 64, 24)) }
+      : {}),
   };
 }
 
@@ -481,7 +486,7 @@ export function serializePreview(payloadJson: string, spec: PreviewSpec): string
   } catch {
     root = {};
   }
-  root.v = 2;
+  root.v = 3;
   root.preview = spec;
   return JSON.stringify(root);
 }
@@ -594,6 +599,19 @@ export function previewFields(spec: PreviewSpec): PreviewField[] {
         sceneField("control", "控件", COMPONENT_CONTROLS, COMPONENT_CONTROL_LABELS),
         { key: "durationMs", label: "时长", type: "number", min: 80, max: 1200, step: 10, unit: "ms" },
         easingField,
+        ...(typeof spec.hitTarget === "number"
+          ? [
+              {
+                key: "hitTarget",
+                label: "热区",
+                type: "number" as const,
+                min: 24,
+                max: 64,
+                step: 1,
+                unit: "px",
+              },
+            ]
+          : []),
       ];
     case "theme":
       return [
@@ -1335,24 +1353,168 @@ export const PARAM_KEY_LABELS: Record<string, string> = {
 
 /** 读取 payload 根对象的 paramSources；无有效项返回 null。 */
 export function parseParamSources(payloadJson: string): Record<string, ParamSourceLevel> | null {
+  return parseParamEvidence(payloadJson)?.sources ?? null;
+}
+
+export interface SpecRef {
+  platform: string;
+  version: string;
+  component: string;
+  url: string;
+  quote: string;
+}
+
+export interface SpecBinding {
+  bound: boolean;
+  platform?: string;
+  version?: string;
+  docUrl?: string;
+  note?: string;
+}
+
+export interface ParamEvidence {
+  sources: Record<string, ParamSourceLevel>;
+  refs: Record<string, SpecRef>;
+  alts: Record<string, SpecRef[]>;
+  binding: SpecBinding | null;
+}
+
+function textField(record: Record<string, unknown>, key: string, max: number): string | null {
+  const value = record[key];
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || text.length > max) return null;
+  return text;
+}
+
+function readSpecRef(value: unknown): SpecRef | null {
+  if (!isRecord(value)) return null;
+  const platform = textField(value, "platform", 80);
+  const version = textField(value, "version", 80);
+  const component = textField(value, "component", 160);
+  const url = textField(value, "url", 600);
+  const quote = textField(value, "quote", 2000);
+  if (!platform || !version || !component || !url || !quote) return null;
+  if (!url.startsWith("https://")) return null;
+  return { platform, version, component, url, quote };
+}
+
+function numberTokens(text: string): string[] {
+  const tokens: string[] = [];
+  for (const match of text.matchAll(/\d+(?:\.\d+)?/g)) {
+    tokens.push(match[0]);
+  }
+  return tokens;
+}
+
+function containsNumber(quote: string, token: string): boolean {
+  let start = 0;
+  while (true) {
+    const index = quote.indexOf(token, start);
+    if (index < 0) return false;
+    const before = quote[index - 1];
+    const after = quote[index + token.length];
+    const boundary = (ch: string | undefined) => ch === undefined || !/[\d.]/.test(ch);
+    if (boundary(before) && boundary(after)) return true;
+    start = index + token.length;
+  }
+}
+
+function bezierValues(text: string): number[] | null {
+  const match = text.match(/cubic-bezier\(([^)]*)\)/);
+  if (!match) return null;
+  const values = match[1]
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((value) => Number.isFinite(value));
+  return values.length === 4 ? values : null;
+}
+
+/** 与 Rust 侧同口径：quote 必须和参数值一一对应。 */
+function quoteMatches(actual: unknown, ref: SpecRef): boolean {
+  const compact = (text: string) => text.replace(/\s+/g, "");
+  if (typeof actual === "number") {
+    return containsNumber(ref.quote, String(actual));
+  }
+  if (typeof actual !== "string") return false;
+  const value = actual.trim();
+  if (value.startsWith("cubic-bezier")) {
+    const expected = bezierValues(value);
+    const quoted = bezierValues(ref.quote);
+    return Boolean(
+      expected && quoted && expected.every((number, index) => number === quoted[index]),
+    );
+  }
+  const tokens = numberTokens(value);
+  if (tokens.length === 0) return compact(ref.quote).includes(compact(value));
+  return tokens.every((token) => containsNumber(ref.quote, token));
+}
+
+/**
+ * 解析并归一化参数证据：verified 必须有合法 specRef 且 quote 与值对应，
+ * 否则一律降为 estimated；无 specRef 的参数最高也是 estimated。
+ */
+export function parseParamEvidence(payloadJson: string): ParamEvidence | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(payloadJson);
   } catch {
     return null;
   }
-  if (!isRecord(parsed) || !isRecord(parsed.paramSources)) return null;
+  if (!isRecord(parsed)) return null;
 
-  const out: Record<string, ParamSourceLevel> = {};
-  for (const [key, value] of Object.entries(parsed.paramSources)) {
-    if (
-      typeof value === "string" &&
-      (PARAM_SOURCE_LEVELS as readonly string[]).includes(value)
-    ) {
-      out[key] = value as ParamSourceLevel;
+  const refs: Record<string, SpecRef> = {};
+  if (isRecord(parsed.paramRefs)) {
+    for (const [key, value] of Object.entries(parsed.paramRefs)) {
+      const ref = readSpecRef(value);
+      if (ref) refs[key] = ref;
     }
   }
-  return Object.keys(out).length > 0 ? out : null;
+
+  const alts: Record<string, SpecRef[]> = {};
+  if (isRecord(parsed.paramRefAlts)) {
+    for (const [key, value] of Object.entries(parsed.paramRefAlts)) {
+      if (!Array.isArray(value)) continue;
+      const list = value.map(readSpecRef).filter((ref): ref is SpecRef => ref !== null);
+      if (list.length > 0) alts[key] = list;
+    }
+  }
+
+  let binding: SpecBinding | null = null;
+  if (isRecord(parsed.specBinding)) {
+    const bound = parsed.specBinding.bound === true;
+    const platform = textField(parsed.specBinding, "platform", 80) ?? undefined;
+    const version = textField(parsed.specBinding, "version", 80) ?? undefined;
+    const docUrl = textField(parsed.specBinding, "docUrl", 600) ?? undefined;
+    const note = textField(parsed.specBinding, "note", 160) ?? undefined;
+    binding =
+      bound && platform && version
+        ? { bound: true, platform, version, docUrl }
+        : { bound: false, note: note ?? "非平台绑定" };
+  }
+
+  const sources: Record<string, ParamSourceLevel> = {};
+  if (isRecord(parsed.paramSources)) {
+    const preview = isRecord(parsed.preview) ? parsed.preview : {};
+    for (const [key, value] of Object.entries(parsed.paramSources)) {
+      if (typeof value !== "string" || !(PARAM_SOURCE_LEVELS as readonly string[]).includes(value)) {
+        continue;
+      }
+      let level = value as ParamSourceLevel;
+      if (level === "verified") {
+        const ref = refs[key];
+        if (!ref || !(key in preview) || !quoteMatches(preview[key], ref)) {
+          level = "estimated";
+        }
+      }
+      sources[key] = level;
+    }
+  }
+
+  if (Object.keys(sources).length === 0 && Object.keys(refs).length === 0 && !binding) {
+    return null;
+  }
+  return { sources, refs, alts, binding };
 }
 
 /** 读取内容包条目自带的提示词；没有则返回 null（调用方回退到生成提示词）。 */
