@@ -419,6 +419,12 @@
   white-space: nowrap;
 }
 
+.settings-package-note {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
 .settings-footnote-inline {
   margin: var(--space-2) 0 0;
   color: var(--text-tertiary);

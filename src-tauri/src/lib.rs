@@ -169,8 +169,11 @@ fn import_builtin_content(app: &tauri::AppHandle, pool: &sqlx::SqlitePool) {
         Some(source_ref.as_str()),
     )) {
         Ok(Some(report)) => println!(
-            "内置内容包已导入：created {}，skipped_modified {}",
-            report.stats.created, report.stats.skipped_modified
+            "内置内容包已同步：v{}，新增 {}，更新 {}，保留改动 {}",
+            report.package.version,
+            report.stats.created,
+            report.stats.updated,
+            report.stats.skipped_modified
         ),
         Ok(None) => {}
         Err(err) => eprintln!("内置内容包导入失败：{err}"),

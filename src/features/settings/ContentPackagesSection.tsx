@@ -24,6 +24,33 @@ import { formatDateTime } from "@/lib/utils";
 
 type Status = { tone: "ok" | "error" | "note"; text: string };
 
+/** 内置包静默升级记录：由后端在设置项里写入，已安装列表原样展示。 */
+type BuiltinUpgradeNote = {
+  version: string;
+  added: number;
+  updated: number;
+  kept: number;
+};
+
+function readUpgradeNote(
+  raw: string | undefined,
+  packageId: string,
+): BuiltinUpgradeNote | null {
+  if (!raw) return null;
+  try {
+    const all = JSON.parse(raw) as Record<string, BuiltinUpgradeNote | undefined>;
+    const note = all[packageId];
+    if (!note || typeof note.version !== "string") return null;
+    return note;
+  } catch {
+    return null;
+  }
+}
+
+function upgradeNoteText(note: BuiltinUpgradeNote): string {
+  return `随软件更新到 v${note.version}（新增 ${note.added}、更新 ${note.updated}、保留 ${note.kept}）`;
+}
+
 function statsText(stats: ContentPackageStats): string {
   const parts = [
     stats.created ? `新增 ${stats.created}` : "",
@@ -434,26 +461,42 @@ export function ContentPackagesSection() {
           </div>
         ) : (
           <ul className="settings-package-list">
-            {packages.data?.map((item) => (
-              <li key={item.id} className="settings-package-row">
-                <div className="settings-package-main">
-                  <span className="settings-package-name">{item.name}</span>
-                  <span className="settings-package-meta">
-                    v{item.version} · {item.itemCount} 条 · {item.source === "online" ? "在线" : "本地"} ·{" "}
-                    {formatDateTime(item.installedAt)}
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  variant={confirming === item.id ? "primary" : "secondary"}
-                  icon={<Trash2 size={12} strokeWidth={2} />}
-                  disabled={busy}
-                  onClick={() => runUninstall(item.id)}
-                >
-                  {confirming === item.id ? "确认移除" : "卸载"}
-                </Button>
-              </li>
-            ))}
+            {packages.data?.map((item) => {
+              const note = readUpgradeNote(
+                settings.data?.[SETTINGS_KEYS.contentBuiltinUpgrade],
+                item.id,
+              );
+              return (
+                <li key={item.id} className="settings-package-row">
+                  <div className="settings-package-main">
+                    <span className="settings-package-name">{item.name}</span>
+                    <span className="settings-package-meta">
+                      v{item.version} · {item.itemCount} 条 ·{" "}
+                      {item.source === "online"
+                        ? "在线"
+                        : item.source === "builtin"
+                          ? "内置"
+                          : "本地"}{" "}
+                      · {formatDateTime(item.installedAt)}
+                    </span>
+                    {note ? (
+                      <span className="settings-package-note" data-builtin-upgrade={item.id}>
+                        {upgradeNoteText(note)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={confirming === item.id ? "primary" : "secondary"}
+                    icon={<Trash2 size={12} strokeWidth={2} />}
+                    disabled={busy}
+                    onClick={() => runUninstall(item.id)}
+                  >
+                    {confirming === item.id ? "确认移除" : "卸载"}
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

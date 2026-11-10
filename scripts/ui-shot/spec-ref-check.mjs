@@ -98,6 +98,12 @@ record(
   material3?.specBinding?.bound === true && material3?.specBinding?.version === "Expressive 2025+",
   material3?.specBinding,
 );
+record(
+  "缓动 specRef 版本写明 Pre-Expressive 且官方已停维护",
+  /Pre-Expressive/.test(material3?.paramRefs?.easing?.version ?? "") &&
+    /no longer maintained/.test(material3?.paramRefs?.easing?.version ?? ""),
+  material3?.paramRefs?.easing?.version,
+);
 
 const components = items.filter((item) => item.kind === "component");
 const generic = components.filter((item) => item.specBinding?.bound === false);
@@ -437,7 +443,8 @@ async function main() {
     record(
       "点开显示平台版本、组件与原文引句",
       Boolean(easingPopover) &&
-        easingPopover.text.includes("Material 3 · Expressive 2025+") &&
+        easingPopover.text.includes("Pre-Expressive") &&
+        easingPopover.text.includes("no longer maintained") &&
         easingPopover.text.includes("Easing and duration tokens") &&
         easingPopover.quotes.some((quote) => quote.includes("cubic-bezier(0.2, 0.0, 0, 1.0)")),
       easingPopover,

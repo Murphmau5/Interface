@@ -108,6 +108,7 @@ export const SETTINGS_KEYS = {
   discoveryQuery: "lab.discovery.query",
   contentFeedUrl: "content.feedUrl",
   contentTrustedKeys: "content.trustedKeys",
+  contentBuiltinUpgrade: "content.builtinUpgrade",
   onboarding: "ui.onboarding",
 } as const;
 

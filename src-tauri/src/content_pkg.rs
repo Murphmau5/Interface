@@ -42,6 +42,10 @@ pub const DEFAULT_PUBLIC_KEY_HEX: &str =
     "460886f55c6a1c4ef9560ec0f57b4c3c0b4ec88dd8418faa621d2bc3969d4909";
 pub const TRUSTED_KEYS_SETTING: &str = "content.trustedKeys";
 pub const FEED_URL_SETTING: &str = "content.feedUrl";
+/// 用户手动卸载过的内置包 id（逗号分隔）：卸载过的内置包不随软件更新装回。
+pub const BUILTIN_UNINSTALLED_SETTING: &str = "content.uninstalledBuiltin";
+/// 内置包静默升级记录（JSON，按包 id 索引），供设置页已安装列表展示。
+pub const BUILTIN_UPGRADE_SETTING: &str = "content.builtinUpgrade";
 
 pub const MAX_PACKAGE_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_UNCOMPRESSED_BYTES: u64 = 256 * 1024 * 1024;
@@ -334,6 +338,83 @@ fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = crate::sha256::Sha256::new();
     hasher.update(bytes);
     crate::sha256::hex(&hasher.finalize())
+}
+
+async fn read_setting(pool: &SqlitePool, key: &str) -> Result<Option<String>, AppError> {
+    Ok(sqlx::query_scalar("SELECT value FROM settings WHERE key = ?1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?)
+}
+
+async fn write_setting(pool: &SqlitePool, key: &str, value: &str) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        INSERT INTO settings (key, value, updated_at)
+        VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ON CONFLICT(key) DO UPDATE SET
+            value = excluded.value,
+            updated_at = excluded.updated_at
+        "#,
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// 用户手动卸载过的内置包 id 列表。
+async fn builtin_uninstalled_ids(pool: &SqlitePool) -> Result<Vec<String>, AppError> {
+    Ok(read_setting(pool, BUILTIN_UNINSTALLED_SETTING)
+        .await?
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
+/// 内置包升级记录：`{ "<包 id>": { version, fromVersion, added, updated, kept, at } }`。
+fn upgrade_notes(raw: Option<String>) -> serde_json::Map<String, serde_json::Value> {
+    raw.and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default()
+}
+
+async fn record_builtin_upgrade(
+    pool: &SqlitePool,
+    package_id: &str,
+    from_version: &str,
+    report: &ImportReport,
+) -> Result<(), AppError> {
+    let stats = &report.stats;
+    let at: String = sqlx::query_scalar("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")
+        .fetch_one(pool)
+        .await?;
+    let mut notes = upgrade_notes(read_setting(pool, BUILTIN_UPGRADE_SETTING).await?);
+    notes.insert(
+        package_id.to_string(),
+        serde_json::json!({
+            "version": report.package.version,
+            "fromVersion": from_version,
+            "added": stats.created,
+            "updated": stats.updated,
+            // 用户改过 / 删过的条目：如实计入「保留」
+            "kept": stats.skipped_modified
+                + stats.skipped_deleted
+                + stats.kept_modified
+                + stats.kept_favorite,
+            "at": at,
+        }),
+    );
+    write_setting(
+        pool,
+        BUILTIN_UPGRADE_SETTING,
+        &serde_json::Value::Object(notes).to_string(),
+    )
+    .await
 }
 
 fn current_app_version() -> &'static str {
@@ -1371,6 +1452,18 @@ pub async fn import_package(
 
     tx.commit().await?;
 
+    // 手动导入或在线安装说明用户又要回了这个包：清掉「卸载过内置包」标记，
+    // 之后的软件内置升级可以正常合并。
+    let uninstalled = builtin_uninstalled_ids(pool).await?;
+    if uninstalled.iter().any(|id| id == &manifest.id) {
+        let remaining: Vec<&str> = uninstalled
+            .iter()
+            .filter(|id| *id != &manifest.id)
+            .map(String::as_str)
+            .collect();
+        write_setting(pool, BUILTIN_UNINSTALLED_SETTING, &remaining.join(",")).await?;
+    }
+
     // 事务外补写搜索列；失败不回滚已提交的导入
     for id in refresh_ids {
         search::refresh_case(pool, &id).await?;
@@ -1390,35 +1483,51 @@ pub async fn import_package(
     })
 }
 
-/// 安装包内置内容：只在尚未安装该包时导入一次。
+/// 安装包内置内容：首次安装直接导入；已安装时只在随包版本更高时静默合并升级。
 ///
-/// 返回 `Ok(None)` 表示跳过（已安装过，含用户此前手动导入）。
-/// 已安装即不再走安装包，后续更新由 `content.feedUrl` 在线包负责；
-/// 用户改过的条目仍按 `import_package` 的合并规则跳过。
+/// 返回 `Ok(None)` 表示本次不动：
+/// - 用户手动卸载过该内置包（不强行装回）；
+/// - 已装版本不低于随包版本（含无法比较的情况）。
+///
+/// 升级走 [`import_package`] 的合并规则：用户改过的不覆盖、删过的不复活，
+/// 只补新增与变更。成功后在设置项里留一条升级记录，供设置页展示。
 pub async fn import_builtin_if_needed(
     pool: &SqlitePool,
     package_id: &str,
     bytes: &[u8],
     source_ref: Option<&str>,
 ) -> Result<Option<ImportReport>, AppError> {
-    let installed: Option<String> =
-        sqlx::query_scalar("SELECT id FROM content_packages WHERE id = ?1")
+    if builtin_uninstalled_ids(pool)
+        .await?
+        .iter()
+        .any(|id| id == package_id)
+    {
+        return Ok(None);
+    }
+
+    let keys = resolve_trusted_keys(pool).await?;
+    let limits = PackageLimits::default();
+    // 先验签并读 manifest：不先验包就无法安全地比较版本
+    let loaded = load_package(bytes, &limits, &keys)?;
+    let installed_version: Option<String> =
+        sqlx::query_scalar("SELECT version FROM content_packages WHERE id = ?1")
             .bind(package_id)
             .fetch_optional(pool)
             .await?;
-    if installed.is_some() {
-        return Ok(None);
+
+    let previous_version = match installed_version {
+        None => None,
+        Some(installed) => match compare_versions(&loaded.manifest.version, &installed) {
+            Some(order) if order > 0 => Some(installed),
+            // 同版本或已装更高版本：不重复写入
+            _ => return Ok(None),
+        },
+    };
+
+    let report = import_package(pool, bytes, "builtin", source_ref, &keys, &limits).await?;
+    if let Some(previous) = previous_version {
+        record_builtin_upgrade(pool, package_id, &previous, &report).await?;
     }
-    let keys = resolve_trusted_keys(pool).await?;
-    let report = import_package(
-        pool,
-        bytes,
-        "builtin",
-        source_ref,
-        &keys,
-        &PackageLimits::default(),
-    )
-    .await?;
     Ok(Some(report))
 }
 
@@ -1428,19 +1537,24 @@ pub async fn uninstall_package(
     pool: &SqlitePool,
     package_id: &str,
 ) -> Result<UninstallReport, AppError> {
-    let exists: Option<i64> = sqlx::query_scalar("SELECT 1 FROM content_packages WHERE id = ?1")
-        .bind(package_id)
-        .fetch_optional(pool)
-        .await?;
-    if exists.is_none() {
+    let source: Option<String> =
+        sqlx::query_scalar("SELECT source FROM content_packages WHERE id = ?1")
+            .bind(package_id)
+            .fetch_optional(pool)
+            .await?;
+    let Some(source) = source else {
         return Err(AppError::NotFound("内容包未安装".into()));
-    }
+    };
 
     let rows: Vec<Option<String>> =
         sqlx::query_scalar("SELECT case_id FROM content_package_items WHERE package_id = ?1")
             .bind(package_id)
             .fetch_all(pool)
             .await?;
+
+    // 事务内写标记，避免「已卸载但没记下来」导致下次启动又装回内置包
+    let mut uninstalled = builtin_uninstalled_ids(pool).await?;
+    let mut notes = upgrade_notes(read_setting(pool, BUILTIN_UPGRADE_SETTING).await?);
 
     let mut tx = pool.begin().await?;
     let mut report = UninstallReport {
@@ -1483,6 +1597,36 @@ pub async fn uninstall_package(
         .bind(package_id)
         .execute(&mut *tx)
         .await?;
+
+    // 内置包被手动卸载：记下 id，后续随软件更新不再装回
+    if source == "builtin" && !uninstalled.iter().any(|id| id == package_id) {
+        uninstalled.push(package_id.to_string());
+        sqlx::query(
+            r#"
+            INSERT INTO settings (key, value, updated_at)
+            VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            "#,
+        )
+        .bind(BUILTIN_UNINSTALLED_SETTING)
+        .bind(uninstalled.join(","))
+        .execute(&mut *tx)
+        .await?;
+    }
+    // 升级记录随包一起消失
+    if notes.remove(package_id).is_some() {
+        sqlx::query(
+            r#"
+            INSERT INTO settings (key, value, updated_at)
+            VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            "#,
+        )
+        .bind(BUILTIN_UPGRADE_SETTING)
+        .bind(serde_json::Value::Object(notes).to_string())
+        .execute(&mut *tx)
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(report)
@@ -2504,33 +2648,77 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
-    #[tokio::test]
-    async fn builtin_import_runs_once_and_skips_installed_package() {
-        let (pool, dir) = test_pool().await;
+    /// 构造内置包版本的通用写法：同一 id 换标题即视为内容变更。
+    fn builtin_package(version: &str, items: &[(&str, &str)]) -> Vec<u8> {
+        let mut manifest = base_manifest(version);
+        let mut payloads: Vec<(String, Vec<u8>)> = Vec::new();
+        for (id, title) in items {
+            manifest.items.push(manifest_item(id, "1.0.0"));
+            payloads.push((format!("content/{id}.json"), payload(title)));
+        }
+        let manifest = prepare_manifest(manifest, &payloads);
+        build_package(&manifest, &payloads)
+    }
+
+    async fn trust_test_key(pool: &SqlitePool) {
         let (_, public) = test_key();
         sqlx::query("INSERT INTO settings (key, value) VALUES (?1, ?2)")
             .bind(TRUSTED_KEYS_SETTING)
             .bind(crate::sha256::hex(&public))
-            .execute(&pool)
+            .execute(pool)
             .await
             .expect("写入信任公钥");
+    }
 
-        let mut manifest = base_manifest("1.0.0");
-        manifest.items.push(manifest_item("one", "1.0.0"));
-        let payloads = vec![("content/one.json".to_string(), payload("一"))];
-        let manifest = prepare_manifest(manifest, &payloads);
-        let package = build_package(&manifest, &payloads);
+    #[tokio::test]
+    async fn builtin_import_skips_same_version_and_merges_newer_version() {
+        let (pool, dir) = test_pool().await;
+        trust_test_key(&pool).await;
 
-        let first = import_builtin_if_needed(&pool, "demo.pack", &package, Some("builtin:test"))
+        let v1 = builtin_package("1.0.0", &[("one", "一")]);
+        let first = import_builtin_if_needed(&pool, "demo.pack", &v1, Some("builtin:test"))
             .await
             .expect("首次导入")
             .expect("首次应导入");
         assert_eq!(first.stats.created, 1);
 
-        let second = import_builtin_if_needed(&pool, "demo.pack", &package, Some("builtin:test"))
+        let second = import_builtin_if_needed(&pool, "demo.pack", &v1, Some("builtin:test"))
             .await
             .expect("二次调用");
-        assert!(second.is_none(), "已安装后应跳过");
+        assert!(second.is_none(), "同版本应跳过");
+
+        // 随包版本更高：走合并路径，只补新增与变更
+        let v2 = builtin_package("1.1.0", &[("one", "一改"), ("two", "二")]);
+        let upgraded = import_builtin_if_needed(&pool, "demo.pack", &v2, Some("builtin:test"))
+            .await
+            .expect("升级调用")
+            .expect("更高版本应升级");
+        assert_eq!(upgraded.stats.updated, 1);
+        assert_eq!(upgraded.stats.created, 1);
+        assert_eq!(upgraded.package.version, "1.1.0");
+
+        let payload_json: String =
+            sqlx::query_scalar("SELECT payload_json FROM cases WHERE id = 'pkg:demo.pack:one'")
+                .fetch_one(&pool)
+                .await
+                .expect("读取升级后的条目");
+        assert!(
+            payload_json.contains("一改"),
+            "已有条目应合并到新载荷：{payload_json}"
+        );
+
+        // 升级记录留在设置里，供设置页已安装列表展示
+        let raw: String = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?1")
+            .bind(BUILTIN_UPGRADE_SETTING)
+            .fetch_one(&pool)
+            .await
+            .expect("读取升级记录");
+        let note: serde_json::Value = serde_json::from_str(&raw).expect("升级记录是 JSON");
+        assert_eq!(note["demo.pack"]["version"], "1.1.0");
+        assert_eq!(note["demo.pack"]["fromVersion"], "1.0.0");
+        assert_eq!(note["demo.pack"]["added"], 1);
+        assert_eq!(note["demo.pack"]["updated"], 1);
+        assert_eq!(note["demo.pack"]["kept"], 0);
 
         let total: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM cases WHERE origin_package_id = 'demo.pack'",
@@ -2538,13 +2726,131 @@ mod tests {
         .fetch_one(&pool)
         .await
         .expect("统计条目");
-        assert_eq!(total, 1, "重复导入不应产生重复条目");
-        let source: String =
-            sqlx::query_scalar("SELECT source FROM content_packages WHERE id = 'demo.pack'")
+        assert_eq!(total, 2, "升级不应产生重复条目");
+
+        let again = import_builtin_if_needed(&pool, "demo.pack", &v2, Some("builtin:test"))
+            .await
+            .expect("再次调用");
+        assert!(again.is_none(), "同一版本不应重复合并");
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn builtin_upgrade_keeps_user_edits_and_deletions() {
+        let (pool, dir) = test_pool().await;
+        trust_test_key(&pool).await;
+
+        let v1 = builtin_package("1.0.0", &[("one", "一"), ("two", "二")]);
+        import_builtin_if_needed(&pool, "demo.pack", &v1, Some("builtin:test"))
+            .await
+            .expect("首次导入")
+            .expect("首次应导入");
+
+        // 用户改过 one，删过 two
+        sqlx::query("UPDATE cases SET title = '我的改法' WHERE id = 'pkg:demo.pack:one'")
+            .execute(&pool)
+            .await
+            .expect("模拟用户修改");
+        sqlx::query(
+            "UPDATE cases SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = 'pkg:demo.pack:two'",
+        )
+        .execute(&pool)
+        .await
+        .expect("模拟用户删除");
+
+        let v2 = builtin_package("1.1.0", &[("one", "一改"), ("two", "二改"), ("three", "三")]);
+        let report = import_builtin_if_needed(&pool, "demo.pack", &v2, Some("builtin:test"))
+            .await
+            .expect("升级调用")
+            .expect("更高版本应升级");
+        assert_eq!(report.stats.created, 1);
+        assert_eq!(report.stats.skipped_modified, 1);
+        assert_eq!(report.stats.skipped_deleted, 1);
+
+        let title: String =
+            sqlx::query_scalar("SELECT title FROM cases WHERE id = 'pkg:demo.pack:one'")
                 .fetch_one(&pool)
                 .await
-                .expect("读取包记录");
-        assert_eq!(source, "builtin");
+                .expect("读取用户改动");
+        assert_eq!(title, "我的改法", "用户改过的条目不应被覆盖");
+
+        let deleted_at: Option<String> =
+            sqlx::query_scalar("SELECT deleted_at FROM cases WHERE id = 'pkg:demo.pack:two'")
+                .fetch_one(&pool)
+                .await
+                .expect("读取删除状态");
+        assert!(deleted_at.is_some(), "用户删过的条目不应复活");
+
+        let raw: String = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?1")
+            .bind(BUILTIN_UPGRADE_SETTING)
+            .fetch_one(&pool)
+            .await
+            .expect("读取升级记录");
+        let note: serde_json::Value = serde_json::from_str(&raw).expect("升级记录是 JSON");
+        assert_eq!(note["demo.pack"]["kept"], 2);
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn builtin_is_not_reinstalled_after_user_uninstall() {
+        let (pool, dir) = test_pool().await;
+        trust_test_key(&pool).await;
+
+        let v1 = builtin_package("1.0.0", &[("one", "一")]);
+        import_builtin_if_needed(&pool, "demo.pack", &v1, Some("builtin:test"))
+            .await
+            .expect("首次导入")
+            .expect("首次应导入");
+
+        let report = uninstall_package(&pool, "demo.pack")
+            .await
+            .expect("卸载内置包");
+        assert_eq!(report.removed, 1);
+
+        let marker: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?1")
+            .bind(BUILTIN_UNINSTALLED_SETTING)
+            .fetch_optional(&pool)
+            .await
+            .expect("读取卸载标记");
+        assert_eq!(marker.as_deref(), Some("demo.pack"));
+
+        // 随包版本更高也不装回
+        let v2 = builtin_package("2.0.0", &[("one", "一"), ("two", "二")]);
+        let reinstalled = import_builtin_if_needed(&pool, "demo.pack", &v2, Some("builtin:test"))
+            .await
+            .expect("卸载后调用");
+        assert!(reinstalled.is_none(), "用户卸载过的内置包不应被装回");
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM content_packages")
+            .fetch_one(&pool)
+            .await
+            .expect("统计内容包");
+        assert_eq!(count, 0);
+
+        // 用户手动再导入：清掉标记，之后内置升级恢复
+        let (_, public) = test_key();
+        import_package(
+            &pool,
+            &v2,
+            "local",
+            None,
+            &[public],
+            &PackageLimits::default(),
+        )
+        .await
+        .expect("手动重新导入");
+        let marker: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?1")
+            .bind(BUILTIN_UNINSTALLED_SETTING)
+            .fetch_optional(&pool)
+            .await
+            .expect("读取卸载标记");
+        assert!(
+            marker.as_deref().unwrap_or_default().is_empty(),
+            "手动导入后应清除卸载标记"
+        );
 
         drop(pool);
         let _ = std::fs::remove_dir_all(dir);
