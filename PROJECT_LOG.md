@@ -175,3 +175,62 @@
 - `TASKS.md`：环境事实补全并行产物清单；Q-02 补记 7 域反方证据。
 - `DECISIONS.md`：D-017 补记第二份研究材料同样倾向主题不独立。
 - 本轮未写业务代码、未初始化工程、未执行任何远程操作。
+
+---
+
+## 2026-11-10（Asia/Shanghai）— 1.0.16 内置内容包升级收尾，按用户要求暂停
+
+> 说明：1.0.0–1.0.15 的发版过程当时记录在 CHANGELOG 与 GitHub Release，本文件没有逐版补登；本条目只如实记录 1.0.16 这一批，以及停在哪里。
+
+### 背景
+
+1.0.15 上了参数证据链，但内置内容包「装过就跳过」，已装用户升级软件后参数级 `verified` 仍为 0——9 行官方原文只写在内容源里，进不了已有数据库。本批只修这条落地缺口，并修正 M3 缓动的版本表述，不新增功能。
+
+### 完成的改动
+
+| 文件 | 动作 | 内容 |
+|---|---|---|
+| `src-tauri/src/content_pkg.rs` | 修改 | `import_builtin_if_needed` 先验签读 manifest，比对已装版本与随包版本；仅随包更高时走 `import_package` 合并。新增「用户手动卸载过」标记（设置项 `content.uninstalledBuiltin`），卸载内置包时在事务内写入，之后不再装回；手动重新导入会清除标记。升级后写 `content.builtinUpgrade` 记录（version / fromVersion / added / updated / kept / at） |
+| `src-tauri/src/lib.rs` | 修改 | 启动同步日志带出版本与新增 / 更新 / 保留计数 |
+| `content/v1/items.json` | 修改 | 包版本 1.1.0 → 1.1.1；`style.material3.easing` 的 `specRef.version` 改为「Pre-Expressive 旧 token（Expressive 起改用 spring；官方已标注 no longer maintained）」，数值不变 |
+| `src/features/settings/ContentPackagesSection.tsx` | 修改 | 已安装列表新增静默升级记录行；来源标出「内置」 |
+| `src/lib/constants.ts`、`src/styles/settings.css` | 修改 | 新增设置项键与记录行样式 |
+| `scripts/ui-shot/spec-ref-check.mjs` | 修改 | 断言改为新口径，并新增一条「版本写明 Pre-Expressive 且已停维护」，现 20 项 |
+| `CHANGELOG.md`、`README.md`、`docs/release-notes/v1.0.16.md` | 修改/新增 | 版本、下载、校验和与发版说明 |
+
+### 验证结果（真实库，非夹具）
+
+- 启动前真实库：83 条（78 内置 + 5 用户），内置包 1.0.0，参数级 `verified` 为 0。
+- 启动 1.0.16 后：内置包静默合并到 1.1.1（更新 78），库中 9 个参数级 `verified`：`style.material3.easing` + 8 个组件 `hitTarget`；逐条核对 `specRef` 五字段（platform/version/component/url/quote）均非空。
+- 界面：点开缓动来源，弹层显示平台版本、组件、原文引句与「打开官方文档」；截图存于 `.screenshots/1.0.16-spec-popover.png`（该目录不入库）。
+- 设置 → 内容包：已安装列表显示「随软件更新到 v1.1.1（新增 0、更新 78、保留 0）」。
+- 二次启动：`installed_at` / `updated_at` 与升级记录时间戳均未变化，确认同版本不重复写入。
+- Rust 单测 78 项通过，含新写的三组：同版本跳过与高版本合并、用户改动/删除保留、卸载后不装回；格式 1、格式 2 老包导入单测保留。
+- 无头回归 `spec-ref-check.mjs` 20/20；静态门 `tsc --noEmit`、`eslint .`、`vite build`、许可证白名单通过。
+
+### 提交与发布
+
+- 提交 `f292f96`，tag `v1.0.16`，已推送 `origin/main`。
+- Release：https://github.com/Murphmau5/Interface/releases/tag/v1.0.16
+- 附件 `INTERFACE_1.0.16_x64-setup.exe`：8,153,871 字节，SHA-256 `99c976e1f80165234fdb99e4baa650a210e9b25be40c78645edfeacf59529e13`；从 Release 重新下载后核对，与本地一致。
+
+### 当前停在哪个位置
+
+- 1.0.16 已发版（发版提交 `f292f96`）；本条目随后单独提交，除此之外工作区没有进行到一半的代码改动。
+- 真实库停留在升级后的状态（内置包 1.1.1、9 个参数级 `verified`）；改库前的备份在 `.agent/temp/pre-1016/`。
+
+### 下次从哪里接
+
+1. **继续内容治理**：26 行查不到官方原文的参数仍是 `estimated`，可按 `specRef` 规则二轮取证；取证到位的只升参数级，条目级仍保持 `estimated`。
+2. **补平台验证**：真窗口交互（标题栏拖动、双击最大化 / 还原、边缘吸附）、原生拖拽图片导入、安装器单屏交互都未复测；仍然只验证了 Windows x64。
+3. **可选补证**：真实库这次是 1.0.0 → 1.1.1（更新 78 条），没有在 1.0.15 的 1.1.0 包上重放「只更新 1 条」的升级样本；该分支由单测覆盖，未做真库重放。
+
+### 已知问题与限制
+
+- 用户改过 / 删过的条目在内置升级时按设计保留，不会被新内容覆盖或复活；需要新值时只能手动恢复该条目或重新导入内容包。
+- 条目级置信度整体仍是 `estimated`；参数级有出处不等于整条被官方背书。
+- 升级记录是追加式的一条，后续再升级会覆盖为最新一次，不保留历史。
+- `PROJECT_LOG.md` 此前缺 1.0.0–1.0.15 的逐版记录，本次未回补。
+
+---
+
